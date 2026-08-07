@@ -1,0 +1,47 @@
+# ===================== Backend (Python) =====================
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/apostas.db
+backend/.env
+
+# ===================== Frontend (Flutter/Dart) =====================
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.pub-cache/
+frontend/.pub/
+frontend/build/
+
+# Android
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/**/GeneratedPluginRegistrant.*
+frontend/android/key.properties
+frontend/**/*.jks
+
+# iOS / macOS
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/ios/Flutter/Flutter.framework
+frontend/ios/Flutter/Flutter.podspec
+frontend/macos/Pods/
+frontend/macos/Flutter/ephemeral/
+
+# Windows/Linux (gerados no build, não precisa versionar)
+frontend/windows/flutter/ephemeral/
+frontend/linux/flutter/ephemeral/
+
+# ===================== Geral =====================
+*.log
+*.swp
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws

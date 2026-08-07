@@ -1,0 +1,124 @@
+from datetime import date, datetime
+from pydantic import BaseModel, ConfigDict
+
+from .models import ResultadoAposta, OrigemRegistro
+
+
+class ConfiguracaoOut(BaseModel):
+    banca_inicial: float
+    definida: bool
+
+
+class ConfiguracaoUpdate(BaseModel):
+    banca_inicial: float
+
+
+class PontoEvolucaoBanca(BaseModel):
+    data: date
+    banca: float
+    descricao: str | None = None  # o que causou essa mudança, pra tooltip no gráfico
+
+
+class CasaCreate(BaseModel):
+    nome: str
+
+
+class CasaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+    vezes_usada: int
+    criado_em: datetime
+
+
+class BlocoOCR(BaseModel):
+    """Um bloco de texto detectado pelo OCR, com posição normalizada (0 a 1)
+    em relação ao tamanho da imagem. É assim que o app deve mandar cada
+    trecho de texto reconhecido, em vez de um texto corrido só."""
+    texto: str
+    x: float       # posição horizontal do canto esquerdo, 0 = borda esquerda, 1 = borda direita
+    y: float       # posição vertical do topo, 0 = topo, 1 = base
+    largura: float
+    altura: float
+
+
+class RascunhoAposta(BaseModel):
+    """Sugestão de aposta extraída dos blocos — o usuário confirma/edita antes de salvar."""
+    odd: float | None = None
+    valor_apostado: float | None = None
+    retorno_potencial: float | None = None
+    aumento_percentual: float | None = None
+    descricao: str | None = None
+    resultado_sugerido: str | None = None  # "aberto" / "green" / "red", se a imagem já mostrar isso
+
+
+class BetBase(BaseModel):
+    data: date = date.today()
+    casa_de_apostas: str
+    descricao: str | None = None
+    odd: float
+    valor_apostado: float
+    retorno_potencial: float | None = None
+    aumento_percentual: float | None = None  # ex: 30 = aposta turbinada com +30% no lucro
+    resultado: ResultadoAposta = ResultadoAposta.aberto
+
+
+class BetCreate(BetBase):
+    origem: OrigemRegistro = OrigemRegistro.manual
+    # Os dois campos abaixo só vêm preenchidos quando origem = ocr.
+    # É o par (entrada, saída correta) que vira exemplo de treino.
+    blocos_ocr: list[BlocoOCR] | None = None
+    sugestao_original: RascunhoAposta | None = None
+
+
+class BetUpdate(BaseModel):
+    """Todos os campos opcionais: só manda o que quer mudar."""
+    data: date | None = None
+    casa_de_apostas: str | None = None
+    descricao: str | None = None
+    odd: float | None = None
+    valor_apostado: float | None = None
+    retorno_potencial: float | None = None
+    aumento_percentual: float | None = None
+    resultado: ResultadoAposta | None = None
+
+
+class BetOut(BetBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    lucro: float | None
+    origem: OrigemRegistro
+    blocos_ocr: list[BlocoOCR] | None = None
+    sugestao_original: RascunhoAposta | None = None
+    criado_em: datetime
+    atualizado_em: datetime
+
+
+class CalcularRetornoRequest(BaseModel):
+    """Pra pedir ao backend que calcule o retorno de uma aposta turbinada,
+    em vez do usuário fazer a conta na mão."""
+    valor_apostado: float
+    odd: float
+    aumento_percentual: float
+
+
+class CalcularRetornoResponse(BaseModel):
+    retorno_potencial: float
+
+
+class ResumoStats(BaseModel):
+    """Estatísticas gerais da planilha, pra tela inicial do app."""
+    total_apostas: int
+    total_apostado: float
+    lucro_total: float
+    taxa_acerto: float | None
+    roi: float | None
+    banca_inicial: float
+    banca_atual: float
+    odd_media: float | None
+    valor_medio_apostado: float | None
+    maior_lucro: float | None
+    maior_prejuizo: float | None
+    apostas_em_aberto: int
