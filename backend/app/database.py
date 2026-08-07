@@ -1,30 +1,27 @@
-"""
-Configuração do banco de dados.
-
-Por padrão usa SQLite local (arquivo apostas.db), ótimo para desenvolver
-e para rodar o backend na sua própria máquina/rede doméstica.
-
-Quando você quiser subir isso num servidor de verdade, é só trocar
-DATABASE_URL por uma URL do Postgres, ex:
-    postgresql://usuario:senha@host:5432/apostas
-Nenhum outro arquivo precisa mudar.
-"""
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./apostas.db")
+# URL de Conexão com o Neon PostgreSQL
+# Para testar localmente no momento, você pode colar a string direta entre aspas
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://neondb_owner:npg_njguS9c8hpoL@ep-winter-dream-acj3b7sn.sa-east-1.aws.neon.tech/neondb?sslmode=require"
+)
 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+# O SQLAlchemy exige que a URL comece com 'postgresql://' (o Neon já entrega nesse padrão)
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True  # Mantém a conexão saudável em bancos serverless
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
-
 def get_db():
-    """Dependency do FastAPI: abre uma sessão do banco e garante que ela fecha depois."""
     db = SessionLocal()
     try:
         yield db
