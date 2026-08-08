@@ -1,0 +1,26 @@
+name: apostas_app
+description: App pessoal de controle e análise de apostas esportivas.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  http: ^1.2.1
+  fl_chart: ^0.68.0
+  file_picker: ^11.0.3
+  image_picker: ^1.1.2
+  google_mlkit_text_recognition: ^0.13.1
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
