@@ -19,7 +19,7 @@ import httpx
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from PIL import Image
 
-from .schemas import BlocoOCR
+from ..schemas import BlocoOCR
 
 router = APIRouter(prefix="/ocr", tags=["ocr"])
 

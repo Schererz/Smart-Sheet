@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -19,11 +18,15 @@ class _ImportarPlanilhaScreenState extends State<ImportarPlanilhaScreen> {
   String? _erro;
 
   Future<void> _escolherEImportar() async {
+    // withData: true garante que os bytes do arquivo venham preenchidos
+    // (na web isso já é automático; no celular/desktop precisa pedir).
     final resultado = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'csv'],
+      withData: true,
     );
-    if (resultado == null || resultado.files.single.path == null) return; // cancelou
+    final arquivo = resultado?.files.single;
+    if (arquivo == null || arquivo.bytes == null) return; // cancelou
 
     setState(() {
       _importando = true;
@@ -32,8 +35,7 @@ class _ImportarPlanilhaScreenState extends State<ImportarPlanilhaScreen> {
     });
 
     try {
-      final arquivo = File(resultado.files.single.path!);
-      final resposta = await _api.importarPlanilha(arquivo);
+      final resposta = await _api.importarPlanilha(arquivo.bytes!, arquivo.name);
       setState(() => _resultado = resposta);
     } catch (e) {
       setState(() => _erro = '$e');

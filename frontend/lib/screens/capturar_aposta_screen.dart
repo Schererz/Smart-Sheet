@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../models/bloco_ocr.dart';
 import '../services/api_service.dart';
@@ -19,11 +20,18 @@ class _CapturarApostaScreenState extends State<CapturarApostaScreen> {
   final _ocr = OcrService();
   final _api = ApiService();
 
-  final List<File> _fila = [];
+  final List<XFile> _fila = [];
   int _totalNaFila = 0; // guarda o tamanho original pra mostrar "X de Y"
   bool _processando = false;
   String? _erro;
   int _salvas = 0;
+
+  /// No celular usa o ML Kit local (offline). Na web, que não tem ML Kit,
+  /// manda a imagem pro backend ler via Google Cloud Vision.
+  Future<List<BlocoOCR>> _lerImagem(XFile imagem) {
+    if (kIsWeb) return _api.lerImagemViaServidor(imagem);
+    return _ocr.lerBlocos(imagem);
+  }
 
   Future<void> _adicionarDaCamera() async {
     setState(() => _erro = null);
@@ -55,7 +63,8 @@ class _CapturarApostaScreenState extends State<CapturarApostaScreen> {
       setState(() {}); // atualiza o contador "X de Y" na tela
 
       try {
-        final blocos = await _ocr.lerBlocos(imagem);
+        final bytesImagem = await imagem.readAsBytes();
+        final blocos = await _lerImagem(imagem);
         final rascunho = await _api.analisarBlocos(widget.casa, blocos);
 
         if (!mounted) return;
@@ -67,7 +76,7 @@ class _CapturarApostaScreenState extends State<CapturarApostaScreen> {
               origem: 'ocr',
               rascunho: rascunho,
               blocosOcr: blocos,
-              imagemCapturada: imagem,
+              imagemBytes: bytesImagem,
             ),
           ),
         );
@@ -111,6 +120,20 @@ class _CapturarApostaScreenState extends State<CapturarApostaScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            if (kIsWeb)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.destaque.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'Na versão web, a leitura da imagem acontece no servidor (pode levar alguns segundos a mais que no celular).',
+                  style: TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+                ),
+              ),
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -150,19 +173,20 @@ class _CapturarApostaScreenState extends State<CapturarApostaScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _processando ? null : _adicionarDaCamera,
-                    icon: const Icon(Icons.camera_alt_outlined),
-                    label: const Text('Câmera'),
+                if (!kIsWeb)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _processando ? null : _adicionarDaCamera,
+                      icon: const Icon(Icons.camera_alt_outlined),
+                      label: const Text('Câmera'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
+                if (!kIsWeb) const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: _processando ? null : _adicionarDaGaleria,
                     icon: const Icon(Icons.photo_library_outlined),
-                    label: const Text('Galeria (várias)'),
+                    label: Text(kIsWeb ? 'Escolher imagens' : 'Galeria (várias)'),
                   ),
                 ),
               ],

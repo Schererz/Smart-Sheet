@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -12,7 +12,7 @@ class ApostaFormScreen extends StatefulWidget {
   final String origem; // 'manual' ou 'ocr'
   final RascunhoAposta? rascunho; // preenchido quando vem do OCR
   final List<BlocoOCR>? blocosOcr; // guardado junto com a aposta (dataset de treino)
-  final File? imagemCapturada; // exibida no formulário, útil se o OCR errar e precisar ajustar na mão
+  final Uint8List? imagemBytes; // exibida no formulário, útil se o OCR errar e precisar ajustar na mão
   final Aposta? apostaExistente; // preenchido quando é EDIÇÃO de uma aposta já salva
 
   const ApostaFormScreen({
@@ -21,7 +21,7 @@ class ApostaFormScreen extends StatefulWidget {
     this.origem = 'manual',
     this.rascunho,
     this.blocosOcr,
-    this.imagemCapturada,
+    this.imagemBytes,
     this.apostaExistente,
   });
 
@@ -209,7 +209,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            if (widget.imagemCapturada != null)
+            if (widget.imagemBytes != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
@@ -217,7 +217,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
                   border: Border.all(color: AppColors.borda),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: Image.file(widget.imagemCapturada!, height: 220, width: double.infinity, fit: BoxFit.contain),
+                child: Image.memory(widget.imagemBytes!, height: 220, width: double.infinity, fit: BoxFit.contain),
               ),
             if (vindoDoOcr)
               Container(

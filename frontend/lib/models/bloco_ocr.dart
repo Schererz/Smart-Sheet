@@ -16,6 +16,16 @@ class BlocoOCR {
     required this.altura,
   });
 
+  factory BlocoOCR.fromJson(Map<String, dynamic> json) {
+    return BlocoOCR(
+      texto: json['texto'] as String,
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      largura: (json['largura'] as num).toDouble(),
+      altura: (json['altura'] as num).toDouble(),
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'texto': texto,
         'x': x,

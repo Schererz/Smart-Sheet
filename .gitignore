@@ -5,6 +5,7 @@ backend/**/__pycache__/
 backend/*.pyc
 backend/apostas.db
 backend/.env
+backend/google-credentials.json
 
 # ===================== Frontend (Flutter/Dart) =====================
 frontend/.dart_tool/

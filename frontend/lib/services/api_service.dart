@@ -1,6 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../models/aposta.dart';
 import '../models/casa.dart';
@@ -8,13 +10,18 @@ import '../models/bloco_ocr.dart';
 
 /// Ponto único de configuração da URL do backend.
 ///
+/// - Web (testando local com `flutter run -d chrome`): 'http://localhost:8000'
+///   funciona direto, já que o navegador roda na mesma máquina que o backend.
 /// - Emulador Android: use 10.0.2.2 — é o IP especial que o emulador usa
-///   pra enxergar o "localhost" da sua máquina (onde o uvicorn está rodando).
+///   pra enxergar o "localhost" da sua máquina.
 /// - Celular físico na mesma rede Wi-Fi: troque pelo IP da sua máquina,
 ///   ex: 'http://192.168.0.10:8000'.
-/// - iOS simulator: 'http://localhost:8000' funciona direto.
+/// - Depois do deploy: troque pela URL pública do backend (ex: Render).
 class ApiConfig {
-  static const baseUrl = 'http://10.0.2.2:8000';
+  static String get baseUrl {
+    if (kIsWeb) return 'http://localhost:8000';
+    return 'http://10.0.2.2:8000';
+  }
 }
 
 class ApiException implements Exception {
@@ -26,7 +33,7 @@ class ApiException implements Exception {
 
 class ApiService {
   final String baseUrl;
-  ApiService({this.baseUrl = ApiConfig.baseUrl});
+  ApiService({String? baseUrl}) : baseUrl = baseUrl ?? ApiConfig.baseUrl;
 
   Uri _uri(String caminho, [Map<String, String>? query]) =>
       Uri.parse('$baseUrl$caminho').replace(queryParameters: query);
@@ -152,6 +159,26 @@ class ApiService {
     return RascunhoAposta.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
   }
 
+  /// Lê o texto de uma imagem chamando o backend (que usa a Google Cloud
+  /// Vision) — usado SÓ na versão web, onde o ML Kit local não existe.
+  /// No celular, prefira OcrService.lerBlocos (roda no aparelho, offline).
+  Future<List<BlocoOCR>> lerImagemViaServidor(XFile imagem) async {
+    final bytes = await imagem.readAsBytes();
+    final request = http.MultipartRequest('POST', _uri('/ocr/ler-imagem'));
+    request.files.add(http.MultipartFile.fromBytes('arquivo', bytes, filename: imagem.name));
+    final resposta = await request.send();
+    final corpo = await resposta.stream.bytesToString();
+    if (resposta.statusCode >= 400) {
+      String detalhe = corpo;
+      try {
+        detalhe = (jsonDecode(corpo) as Map)['detail']?.toString() ?? detalhe;
+      } catch (_) {}
+      throw ApiException('Erro ${resposta.statusCode}: $detalhe');
+    }
+    final lista = jsonDecode(corpo) as List;
+    return lista.map((j) => BlocoOCR.fromJson(j)).toList();
+  }
+
   // ---------------- Apostas turbinadas ----------------
 
   Future<double> calcularRetornoTurbinado({
@@ -175,9 +202,9 @@ class ApiService {
 
   // ---------------- Importação de planilha ----------------
 
-  Future<Map<String, dynamic>> importarPlanilha(File arquivo) async {
+  Future<Map<String, dynamic>> importarPlanilha(Uint8List bytes, String nomeArquivo) async {
     final request = http.MultipartRequest('POST', _uri('/importacao/planilha'));
-    request.files.add(await http.MultipartFile.fromPath('arquivo', arquivo.path));
+    request.files.add(http.MultipartFile.fromBytes('arquivo', bytes, filename: nomeArquivo));
     final resposta = await request.send();
     final corpo = await resposta.stream.bytesToString();
     if (resposta.statusCode >= 400) {
