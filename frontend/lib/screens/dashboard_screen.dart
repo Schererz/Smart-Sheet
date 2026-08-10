@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../models/aposta.dart';
+import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/resumo_header.dart';
 import 'importar_planilha_screen.dart';
+import 'login_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   final ResumoStats resumo;
@@ -20,6 +22,30 @@ class DashboardScreen extends StatelessWidget {
     required this.onEditarBanca,
     required this.onRefresh,
   });
+
+  Future<void> _sair(BuildContext context) async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.superficieAlta,
+        title: const Text('Sair da conta?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sair')),
+        ],
+      ),
+    );
+    if (confirmou != true) return;
+
+    await AuthService().logout();
+    if (context.mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +64,22 @@ class DashboardScreen extends StatelessWidget {
               );
               onRefresh();
             },
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.account_circle_outlined),
+            onSelected: (valor) {
+              if (valor == 'sair') _sair(context);
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Text(
+                  SessaoAtual.nomeUsuario ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textoSecundario),
+                ),
+              ),
+              const PopupMenuItem(value: 'sair', child: Text('Sair da conta')),
+            ],
           ),
         ],
       ),

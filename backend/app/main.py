@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import models
 from .database import engine
-from .routers import bets, casas, configuracao, importacao, ocr_web, parsing
+from .routers import auth, bets, casas, configuracao, importacao, ocr_web, parsing
 
 # cria as tabelas no banco (se ainda não existirem) toda vez que sobe a API
 models.Base.metadata.create_all(bind=engine)
@@ -23,6 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(bets.router)
 app.include_router(casas.router)
 app.include_router(configuracao.router)

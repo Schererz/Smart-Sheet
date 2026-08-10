@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import '../models/aposta.dart';
 import '../models/casa.dart';
 import '../models/bloco_ocr.dart';
+import 'auth_service.dart';
 
 /// Ponto único de configuração da URL do backend.
 ///
@@ -19,8 +20,8 @@ import '../models/bloco_ocr.dart';
 /// - Depois do deploy: troque pela URL pública do backend (ex: Render).
 class ApiConfig {
   static String get baseUrl {
-    if (kIsWeb) return 'https://smart-sheet-api.onrender.com';
-    return 'https://smart-sheet-api.onrender.com';
+    if (kIsWeb) return 'http://localhost:8000';
+    return 'http://10.0.2.2:8000';
   }
 }
 
@@ -38,6 +39,14 @@ class ApiService {
   Uri _uri(String caminho, [Map<String, String>? query]) =>
       Uri.parse('$baseUrl$caminho').replace(queryParameters: query);
 
+  /// Cabeçalhos padrão, já com o token de quem está logado (se houver).
+  Map<String, String> _headers({bool json = false}) {
+    final headers = <String, String>{};
+    if (json) headers['Content-Type'] = 'application/json';
+    if (SessaoAtual.token != null) headers['Authorization'] = 'Bearer ${SessaoAtual.token}';
+    return headers;
+  }
+
   void _verificarErro(http.Response resposta) {
     if (resposta.statusCode >= 400) {
       String detalhe = resposta.body;
@@ -51,7 +60,7 @@ class ApiService {
   // ---------------- Casas ----------------
 
   Future<List<Casa>> listarCasas() async {
-    final resposta = await http.get(_uri('/casas/'));
+    final resposta = await http.get(_uri('/casas/'), headers: _headers());
     _verificarErro(resposta);
     final lista = jsonDecode(utf8.decode(resposta.bodyBytes)) as List;
     return lista.map((j) => Casa.fromJson(j)).toList();
@@ -60,7 +69,7 @@ class ApiService {
   Future<Casa> criarCasa(String nome) async {
     final resposta = await http.post(
       _uri('/casas/'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(json: true),
       body: jsonEncode({'nome': nome}),
     );
     _verificarErro(resposta);
@@ -70,14 +79,14 @@ class ApiService {
   // ---------------- Apostas ----------------
 
   Future<List<Aposta>> listarApostas() async {
-    final resposta = await http.get(_uri('/apostas/'));
+    final resposta = await http.get(_uri('/apostas/'), headers: _headers());
     _verificarErro(resposta);
     final lista = jsonDecode(utf8.decode(resposta.bodyBytes)) as List;
     return lista.map((j) => Aposta.fromJson(j)).toList();
   }
 
   Future<ResumoStats> obterResumo() async {
-    final resposta = await http.get(_uri('/apostas/resumo'));
+    final resposta = await http.get(_uri('/apostas/resumo'), headers: _headers());
     _verificarErro(resposta);
     return ResumoStats.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
   }
@@ -89,7 +98,7 @@ class ApiService {
   }) async {
     final resposta = await http.post(
       _uri('/apostas/'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(json: true),
       body: jsonEncode(aposta.paraCriacao(blocosOcr: blocosOcr, sugestaoOriginal: sugestaoOriginal)),
     );
     _verificarErro(resposta);
@@ -99,7 +108,7 @@ class ApiService {
   Future<Aposta> atualizarAposta(int id, Map<String, dynamic> campos) async {
     final resposta = await http.patch(
       _uri('/apostas/$id'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(json: true),
       body: jsonEncode(campos),
     );
     _verificarErro(resposta);
@@ -107,25 +116,25 @@ class ApiService {
   }
 
   Future<Aposta> ciclarStatus(int id) async {
-    final resposta = await http.post(_uri('/apostas/$id/ciclar-status'));
+    final resposta = await http.post(_uri('/apostas/$id/ciclar-status'), headers: _headers());
     _verificarErro(resposta);
     return Aposta.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
   }
 
   Future<void> deletarAposta(int id) async {
-    final resposta = await http.delete(_uri('/apostas/$id'));
+    final resposta = await http.delete(_uri('/apostas/$id'), headers: _headers());
     _verificarErro(resposta);
   }
 
   Future<void> deletarCasa(int id) async {
-    final resposta = await http.delete(_uri('/casas/$id'));
+    final resposta = await http.delete(_uri('/casas/$id'), headers: _headers());
     _verificarErro(resposta);
   }
 
   // ---------------- Configuração / banca ----------------
 
   Future<Configuracao> obterConfiguracao() async {
-    final resposta = await http.get(_uri('/configuracao/'));
+    final resposta = await http.get(_uri('/configuracao/'), headers: _headers());
     _verificarErro(resposta);
     return Configuracao.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
   }
@@ -133,7 +142,7 @@ class ApiService {
   Future<Configuracao> definirBancaInicial(double valor) async {
     final resposta = await http.put(
       _uri('/configuracao/'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(json: true),
       body: jsonEncode({'banca_inicial': valor}),
     );
     _verificarErro(resposta);
@@ -141,7 +150,7 @@ class ApiService {
   }
 
   Future<List<PontoEvolucaoBanca>> obterEvolucaoBanca() async {
-    final resposta = await http.get(_uri('/apostas/evolucao-banca'));
+    final resposta = await http.get(_uri('/apostas/evolucao-banca'), headers: _headers());
     _verificarErro(resposta);
     final lista = jsonDecode(utf8.decode(resposta.bodyBytes)) as List;
     return lista.map((j) => PontoEvolucaoBanca.fromJson(j)).toList();
@@ -152,7 +161,7 @@ class ApiService {
   Future<RascunhoAposta> analisarBlocos(String casa, List<BlocoOCR> blocos) async {
     final resposta = await http.post(
       _uri('/parsing/analisar'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(json: true),
       body: jsonEncode({'casa': casa, 'blocos': blocos.map((b) => b.toJson()).toList()}),
     );
     _verificarErro(resposta);
@@ -165,6 +174,7 @@ class ApiService {
   Future<List<BlocoOCR>> lerImagemViaServidor(XFile imagem) async {
     final bytes = await imagem.readAsBytes();
     final request = http.MultipartRequest('POST', _uri('/ocr/ler-imagem'));
+    request.headers.addAll(_headers());
     request.files.add(http.MultipartFile.fromBytes('arquivo', bytes, filename: imagem.name));
     final resposta = await request.send();
     final corpo = await resposta.stream.bytesToString();
@@ -188,7 +198,7 @@ class ApiService {
   }) async {
     final resposta = await http.post(
       _uri('/apostas/calcular-retorno-turbinado'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(json: true),
       body: jsonEncode({
         'valor_apostado': valorApostado,
         'odd': odd,
@@ -204,6 +214,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> importarPlanilha(Uint8List bytes, String nomeArquivo) async {
     final request = http.MultipartRequest('POST', _uri('/importacao/planilha'));
+    request.headers.addAll(_headers());
     request.files.add(http.MultipartFile.fromBytes('arquivo', bytes, filename: nomeArquivo));
     final resposta = await request.send();
     final corpo = await resposta.stream.bytesToString();

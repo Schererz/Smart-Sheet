@@ -1,7 +1,44 @@
 from datetime import date, datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from .models import ResultadoAposta, OrigemRegistro
+
+
+class UsuarioCreate(BaseModel):
+    nome_usuario: str
+    senha: str
+
+    @field_validator("nome_usuario")
+    @classmethod
+    def validar_nome(cls, v):
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("Nome de usuário precisa ter pelo menos 3 caracteres")
+        return v
+
+    @field_validator("senha")
+    @classmethod
+    def validar_senha(cls, v):
+        if len(v) < 4:
+            raise ValueError("Senha precisa ter pelo menos 4 caracteres")
+        return v
+
+
+class UsuarioLogin(BaseModel):
+    nome_usuario: str
+    senha: str
+
+
+class UsuarioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome_usuario: str
+
+
+class TokenOut(BaseModel):
+    token: str
+    usuario: UsuarioOut
 
 
 class ConfiguracaoOut(BaseModel):

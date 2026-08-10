@@ -9,30 +9,39 @@ imagem.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, models, schemas
 from ..database import get_db
+from ..deps import obter_usuario_atual
 
 router = APIRouter(prefix="/casas", tags=["casas"])
 
 
 @router.post("/", response_model=schemas.CasaOut)
-def criar_casa(casa: schemas.CasaCreate, db: Session = Depends(get_db)):
+def criar_casa(
+    casa: schemas.CasaCreate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
     if not casa.nome.strip():
         raise HTTPException(status_code=400, detail="Nome da casa não pode ser vazio")
-    nova, criada = crud.criar_casa(db, casa.nome)
+    nova, criada = crud.criar_casa(db, usuario.id, casa.nome)
     if not criada:
         raise HTTPException(status_code=400, detail="Essa casa já está cadastrada")
     return nova
 
 
 @router.get("/", response_model=list[schemas.CasaOut])
-def listar_casas(db: Session = Depends(get_db)):
-    return crud.listar_casas(db)
+def listar_casas(db: Session = Depends(get_db), usuario: models.Usuario = Depends(obter_usuario_atual)):
+    return crud.listar_casas(db, usuario.id)
 
 
 @router.delete("/{casa_id}")
-def deletar_casa(casa_id: int, db: Session = Depends(get_db)):
-    deletada = crud.deletar_casa(db, casa_id)
+def deletar_casa(
+    casa_id: int,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
+    deletada = crud.deletar_casa(db, usuario.id, casa_id)
     if not deletada:
         raise HTTPException(status_code=404, detail="Casa não encontrada")
     return {"ok": True}

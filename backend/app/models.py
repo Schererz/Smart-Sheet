@@ -9,7 +9,7 @@ possível e a descrição da aposta.
 import enum
 from datetime import datetime, date
 
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Text, JSON, Boolean
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Text, JSON, Boolean, ForeignKey, UniqueConstraint
 from .database import Base
 
 
@@ -33,13 +33,26 @@ class OrigemRegistro(str, enum.Enum):
     ocr = "ocr"
 
 
+class Usuario(Base):
+    """Uma conta do app. Login simples: usuário + senha, gera um token que
+    fica salvo no aparelho/navegador (não precisa logar de novo toda vez)."""
+    __tablename__ = "usuarios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome_usuario = Column(String(50), unique=True, nullable=False, index=True)
+    senha_hash = Column(String(200), nullable=False)
+    token = Column(String(64), nullable=True, unique=True, index=True)
+    criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class Configuracao(Base):
-    """Linha única (id sempre 1) com ajustes gerais do app. Hoje só guarda
+    """Uma linha por usuário, com ajustes gerais do app. Hoje só guarda
     a banca inicial, que o usuário informa na primeira vez que abre o app —
     é a base pra calcular a evolução da banca ao longo do tempo."""
     __tablename__ = "configuracao"
 
-    id = Column(Integer, primary_key=True, default=1)
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), unique=True, nullable=False, index=True)
     banca_inicial = Column(Float, default=0.0, nullable=False)
     definida = Column(Boolean, default=False, nullable=False)  # já foi configurada pelo usuário?
 
@@ -54,16 +67,20 @@ class Casa(Base):
     __tablename__ = "casas"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(100), unique=True, nullable=False, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    nome = Column(String(100), nullable=False, index=True)
     vezes_usada = Column(Integer, default=0, nullable=False)
     zonas_calibradas = Column(JSON, nullable=True)
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (UniqueConstraint("usuario_id", "nome", name="uq_casa_por_usuario"),)
 
 
 class Bet(Base):
     __tablename__ = "bets"
 
     id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
 
     data = Column(Date, default=date.today, nullable=False)
     casa_de_apostas = Column(String(100), nullable=False)  # escolhida pelo usuário antes do upload

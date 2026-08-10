@@ -23,8 +23,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import crud
+from .. import crud, models
 from ..database import get_db
+from ..deps import obter_usuario_atual
 from ..schemas import BlocoOCR, RascunhoAposta
 
 router = APIRouter(prefix="/parsing", tags=["parsing"])
@@ -292,7 +293,11 @@ def analisar_blocos(payload: TextoParaAnalisar):
 
 
 @router.get("/dataset-treino")
-def dataset_treino(casa: str | None = None, db: Session = Depends(get_db)):
+def dataset_treino(
+    casa: str | None = None,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
     """Exporta os exemplos acumulados (blocos + sugestão + valores corretos)
     pra usar num script de treino/calibração futuro. Filtra por casa se informado."""
-    return crud.obter_dataset_treino(db, casa)
+    return crud.obter_dataset_treino(db, usuario.id, casa)

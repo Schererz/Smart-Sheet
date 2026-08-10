@@ -2,15 +2,20 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, models, schemas
 from ..database import get_db
+from ..deps import obter_usuario_atual
 from .. import importacao_utils as utils
 
 router = APIRouter(prefix="/importacao", tags=["importacao"])
 
 
 @router.post("/planilha")
-async def importar_planilha(arquivo: UploadFile = File(...), db: Session = Depends(get_db)):
+async def importar_planilha(
+    arquivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
     nome = (arquivo.filename or "").lower()
     conteudo = await arquivo.read()
 
@@ -64,7 +69,7 @@ async def importar_planilha(arquivo: UploadFile = File(...), db: Session = Depen
                 resultado=utils.normalizar_resultado(pega("resultado")),
                 origem=schemas.OrigemRegistro.manual,
             )
-            crud.criar_aposta(db, aposta)
+            crud.criar_aposta(db, usuario.id, aposta)
             importadas += 1
         except Exception as e:
             erros.append({"linha": i, "motivo": str(e)})

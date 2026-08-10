@@ -21,13 +21,12 @@ from PIL import Image
 
 from ..schemas import BlocoOCR
 
-
 router = APIRouter(prefix="/ocr", tags=["ocr"])
 
 GOOGLE_VISION_URL = "https://vision.googleapis.com/v1/images:annotate"
 
 
-@router.post("/ler-imagem", response_model=list[BlocoOCR]) 
+@router.post("/ler-imagem", response_model=list[BlocoOCR])
 async def ler_imagem(arquivo: UploadFile = File(...)):
     api_key = os.getenv("GOOGLE_VISION_API_KEY")
     if not api_key:
