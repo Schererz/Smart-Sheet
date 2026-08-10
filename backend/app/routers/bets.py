@@ -37,6 +37,16 @@ def evolucao_banca(db: Session = Depends(get_db), usuario: models.Usuario = Depe
     return crud.obter_evolucao_banca(db, usuario.id)
 
 
+@router.get("/resumo-por-casa", response_model=list[schemas.ResumoPorCasa])
+def resumo_por_casa(db: Session = Depends(get_db), usuario: models.Usuario = Depends(obter_usuario_atual)):
+    return crud.obter_resumo_por_casa(db, usuario.id)
+
+
+@router.get("/lucro-por-dia", response_model=list[schemas.PontoLucroDia])
+def lucro_por_dia(db: Session = Depends(get_db), usuario: models.Usuario = Depends(obter_usuario_atual)):
+    return crud.obter_lucro_por_dia(db, usuario.id)
+
+
 @router.post("/calcular-retorno-turbinado", response_model=schemas.CalcularRetornoResponse)
 def calcular_retorno_turbinado(dados: schemas.CalcularRetornoRequest):
     """Calcula o retorno de uma aposta com ganhos aumentados (turbinada),

@@ -66,7 +66,32 @@ class CasaOut(BaseModel):
     id: int
     nome: str
     vezes_usada: int
+    banca_inicial: float | None = None
     criado_em: datetime
+
+
+class CasaBancaUpdate(BaseModel):
+    banca_inicial: float
+
+
+class ResumoPorCasa(BaseModel):
+    """Estatísticas de uma casa específica — pra comparar qual está indo melhor."""
+    casa: str
+    total_apostas: int
+    total_apostado: float
+    lucro_total: float
+    taxa_acerto: float | None
+    odd_media: float | None
+    roi_apostado: float | None  # lucro / total apostado, em %
+    banca_inicial: float | None
+    banca_atual: float | None
+    roi_banca: float | None  # lucro / banca inicial DA CASA, em % (só existe se a banca da casa foi definida)
+
+
+class PontoLucroDia(BaseModel):
+    data: date
+    lucro: float
+    total_apostas: int
 
 
 class BlocoOCR(BaseModel):

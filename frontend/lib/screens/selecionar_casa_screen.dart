@@ -83,6 +83,53 @@ class _SelecionarCasaScreenState extends State<SelecionarCasaScreen> {
     }
   }
 
+  Future<void> _definirBancaCasa(Casa casa) async {
+    final controlador = TextEditingController(text: casa.bancaInicial?.toStringAsFixed(2) ?? '');
+    final valor = await showDialog<double>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.superficieAlta,
+        title: Text('Banca na ${casa.nome}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Quanto você depositou nessa casa? Isso permite ver a banca atual e o ROI específicos dela.',
+                style: TextStyle(color: AppColors.textoSecundario, fontSize: 13),
+              ),
+            ),
+            TextField(
+              controller: controlador,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(hintText: 'R\$ 0,00'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () {
+              final texto = controlador.text.trim().replaceAll(',', '.');
+              Navigator.pop(context, double.tryParse(texto) ?? 0);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (valor == null) return;
+    try {
+      await _api.atualizarBancaCasa(casa.id, valor);
+      await _carregarCasas();
+    } catch (e) {
+      _mostrarErro('Não consegui salvar: $e');
+    }
+  }
+
   void _escolherCasa(String nomeCasa) {
     showModalBottomSheet(
       context: context,
@@ -132,12 +179,20 @@ class _SelecionarCasaScreenState extends State<SelecionarCasaScreen> {
                             child: ListTile(
                               title: Text(casa.nome, style: const TextStyle(fontWeight: FontWeight.w600)),
                               subtitle: Text(
-                                casa.vezesUsada == 1 ? '1 aposta registrada' : '${casa.vezesUsada} apostas registradas',
+                                casa.bancaInicial != null
+                                    ? '${casa.vezesUsada} apostas · banca R\$ ${casa.bancaInicial!.toStringAsFixed(2)}'
+                                    : (casa.vezesUsada == 1 ? '1 aposta registrada' : '${casa.vezesUsada} apostas registradas'),
                                 style: const TextStyle(color: AppColors.textoSecundario, fontSize: 12.5),
                               ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  IconButton(
+                                    onPressed: () => _definirBancaCasa(casa),
+                                    icon: const Icon(Icons.account_balance_wallet_outlined, size: 20),
+                                    color: AppColors.textoSecundario,
+                                    tooltip: 'Definir banca',
+                                  ),
                                   IconButton(
                                     onPressed: () => _excluirCasa(casa),
                                     icon: const Icon(Icons.delete_outline, size: 20),

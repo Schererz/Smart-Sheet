@@ -70,6 +70,7 @@ class Casa(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
     nome = Column(String(100), nullable=False, index=True)
     vezes_usada = Column(Integer, default=0, nullable=False)
+    banca_inicial = Column(Float, nullable=True)  # quanto foi depositado nessa casa, pra calcular banca/ROI por casa
     zonas_calibradas = Column(JSON, nullable=True)
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
 

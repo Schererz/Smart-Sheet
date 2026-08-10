@@ -81,6 +81,16 @@ def deletar_casa(db: Session, usuario_id: int, casa_id: int):
     return casa
 
 
+def atualizar_banca_casa(db: Session, usuario_id: int, casa_id: int, valor: float):
+    casa = db.query(models.Casa).filter(models.Casa.id == casa_id, models.Casa.usuario_id == usuario_id).first()
+    if not casa:
+        return None
+    casa.banca_inicial = valor
+    db.commit()
+    db.refresh(casa)
+    return casa
+
+
 def registrar_uso_casa(db: Session, usuario_id: int, nome: str):
     """Sobe o contador de uso da casa. Se por algum motivo a casa ainda não
     existir (app desatualizado, etc.), cria ela na hora — não trava o fluxo."""
@@ -234,3 +244,79 @@ def calcular_resumo(db: Session, usuario_id: int) -> dict:
         "maior_prejuizo": round(maior_prejuizo, 2) if maior_prejuizo is not None and maior_prejuizo < 0 else None,
         "apostas_em_aberto": apostas_em_aberto,
     }
+
+
+def obter_resumo_por_casa(db: Session, usuario_id: int) -> list[dict]:
+    """Estatísticas separadas por casa — pra comparar qual está indo melhor."""
+    casas = listar_casas(db, usuario_id)
+    resultado = []
+
+    for casa in casas:
+        apostas_da_casa = (
+            db.query(models.Bet)
+            .filter(models.Bet.usuario_id == usuario_id, models.Bet.casa_de_apostas == casa.nome)
+            .all()
+        )
+        if not apostas_da_casa:
+            continue  # casa cadastrada mas sem apostas ainda — não mostra no resumo
+
+        total_apostas = len(apostas_da_casa)
+        total_apostado = sum(a.valor_apostado for a in apostas_da_casa)
+        lucro_total = sum(a.lucro or 0 for a in apostas_da_casa if a.lucro is not None)
+        odd_media = sum(a.odd for a in apostas_da_casa) / total_apostas
+
+        resolvidas = [a for a in apostas_da_casa if a.resultado in (models.ResultadoAposta.green, models.ResultadoAposta.red)]
+        ganhas = sum(1 for a in resolvidas if a.resultado == models.ResultadoAposta.green)
+        taxa_acerto = round(100 * ganhas / len(resolvidas), 1) if resolvidas else None
+        roi_apostado = round(100 * lucro_total / total_apostado, 1) if total_apostado else None
+
+        banca_atual = round(casa.banca_inicial + lucro_total, 2) if casa.banca_inicial is not None else None
+        roi_banca = (
+            round(100 * lucro_total / casa.banca_inicial, 1)
+            if casa.banca_inicial else None
+        )
+
+        resultado.append({
+            "casa": casa.nome,
+            "total_apostas": total_apostas,
+            "total_apostado": round(total_apostado, 2),
+            "lucro_total": round(lucro_total, 2),
+            "taxa_acerto": taxa_acerto,
+            "odd_media": round(odd_media, 2),
+            "roi_apostado": roi_apostado,
+            "banca_inicial": casa.banca_inicial,
+            "banca_atual": banca_atual,
+            "roi_banca": roi_banca,
+        })
+
+    # mais lucrativa primeiro
+    resultado.sort(key=lambda r: r["lucro_total"], reverse=True)
+    return resultado
+
+
+def obter_lucro_por_dia(db: Session, usuario_id: int) -> list[dict]:
+    """Agrupa o lucro das apostas resolvidas por data. Devolve TODO o
+    histórico (do primeiro dia até hoje) — o app decide se mostra os
+    últimos 5 dias ou tudo, sem precisar pedir de novo ao servidor."""
+    apostas = (
+        db.query(models.Bet)
+        .filter(
+            models.Bet.usuario_id == usuario_id,
+            models.Bet.resultado.in_([models.ResultadoAposta.green, models.ResultadoAposta.red]),
+        )
+        .order_by(models.Bet.data.asc())
+        .all()
+    )
+
+    por_dia: dict = {}
+    for aposta in apostas:
+        chave = aposta.data
+        if chave not in por_dia:
+            por_dia[chave] = {"lucro": 0.0, "total_apostas": 0}
+        por_dia[chave]["lucro"] += aposta.lucro or 0
+        por_dia[chave]["total_apostas"] += 1
+
+    return [
+        {"data": dia, "lucro": round(dados["lucro"], 2), "total_apostas": dados["total_apostas"]}
+        for dia, dados in sorted(por_dia.items())
+    ]

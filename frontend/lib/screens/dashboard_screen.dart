@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/aposta.dart';
+import '../models/casa.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/resumo_header.dart';
@@ -11,6 +12,8 @@ class DashboardScreen extends StatelessWidget {
   final ResumoStats resumo;
   final List<PontoEvolucaoBanca> evolucao;
   final List<Aposta> apostas;
+  final List<PontoLucroDia> lucroPorDia;
+  final List<ResumoPorCasa> resumoPorCasa;
   final VoidCallback onEditarBanca;
   final Future<void> Function() onRefresh;
 
@@ -19,6 +22,8 @@ class DashboardScreen extends StatelessWidget {
     required this.resumo,
     required this.evolucao,
     required this.apostas,
+    required this.lucroPorDia,
+    required this.resumoPorCasa,
     required this.onEditarBanca,
     required this.onRefresh,
   });
@@ -92,6 +97,8 @@ class DashboardScreen extends StatelessWidget {
               resumo: resumo,
               evolucao: evolucao,
               apostas: apostas,
+              lucroPorDia: lucroPorDia,
+              resumoPorCasa: resumoPorCasa,
               onEditarBanca: onEditarBanca,
             ),
           ],

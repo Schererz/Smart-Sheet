@@ -45,3 +45,18 @@ def deletar_casa(
     if not deletada:
         raise HTTPException(status_code=404, detail="Casa não encontrada")
     return {"ok": True}
+
+
+@router.patch("/{casa_id}/banca", response_model=schemas.CasaOut)
+def atualizar_banca_casa(
+    casa_id: int,
+    dados: schemas.CasaBancaUpdate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
+    """Define quanto foi depositado nessa casa — base pro cálculo de
+    banca atual e ROI específicos dela."""
+    atualizada = crud.atualizar_banca_casa(db, usuario.id, casa_id, dados.banca_inicial)
+    if not atualizada:
+        raise HTTPException(status_code=404, detail="Casa não encontrada")
+    return atualizada

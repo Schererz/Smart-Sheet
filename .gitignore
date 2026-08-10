@@ -6,6 +6,7 @@ backend/*.pyc
 backend/apostas.db
 backend/.env
 backend/google-credentials.json
+backend/apostas_exportadas.xlsx
 
 # ===================== Frontend (Flutter/Dart) =====================
 frontend/.dart_tool/

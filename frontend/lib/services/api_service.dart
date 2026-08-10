@@ -9,15 +9,6 @@ import '../models/casa.dart';
 import '../models/bloco_ocr.dart';
 import 'auth_service.dart';
 
-/// Ponto único de configuração da URL do backend.
-///
-/// - Web (testando local com `flutter run -d chrome`): 'http://localhost:8000'
-///   funciona direto, já que o navegador roda na mesma máquina que o backend.
-/// - Emulador Android: use 10.0.2.2 — é o IP especial que o emulador usa
-///   pra enxergar o "localhost" da sua máquina.
-/// - Celular físico na mesma rede Wi-Fi: troque pelo IP da sua máquina,
-///   ex: 'http://192.168.0.10:8000'.
-/// - Depois do deploy: troque pela URL pública do backend (ex: Render).
 class ApiConfig {
   static String get baseUrl {
     if (kIsWeb) return 'https://smart-sheet-api.onrender.com';
@@ -129,6 +120,30 @@ class ApiService {
   Future<void> deletarCasa(int id) async {
     final resposta = await http.delete(_uri('/casas/$id'), headers: _headers());
     _verificarErro(resposta);
+  }
+
+  Future<Casa> atualizarBancaCasa(int casaId, double valor) async {
+    final resposta = await http.patch(
+      _uri('/casas/$casaId/banca'),
+      headers: _headers(json: true),
+      body: jsonEncode({'banca_inicial': valor}),
+    );
+    _verificarErro(resposta);
+    return Casa.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
+  }
+
+  Future<List<ResumoPorCasa>> obterResumoPorCasa() async {
+    final resposta = await http.get(_uri('/apostas/resumo-por-casa'), headers: _headers());
+    _verificarErro(resposta);
+    final lista = jsonDecode(utf8.decode(resposta.bodyBytes)) as List;
+    return lista.map((j) => ResumoPorCasa.fromJson(j)).toList();
+  }
+
+  Future<List<PontoLucroDia>> obterLucroPorDia() async {
+    final resposta = await http.get(_uri('/apostas/lucro-por-dia'), headers: _headers());
+    _verificarErro(resposta);
+    final lista = jsonDecode(utf8.decode(resposta.bodyBytes)) as List;
+    return lista.map((j) => PontoLucroDia.fromJson(j)).toList();
   }
 
   // ---------------- Configuração / banca ----------------

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/aposta.dart';
+import '../models/casa.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'apostas_screen.dart';
@@ -23,6 +24,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Aposta> _apostas = [];
   ResumoStats _resumo = ResumoStats.vazio();
   List<PontoEvolucaoBanca> _evolucao = [];
+  List<PontoLucroDia> _lucroPorDia = [];
+  List<ResumoPorCasa> _resumoPorCasa = [];
   bool _carregando = true;
   String? _erro;
 
@@ -114,11 +117,15 @@ class _HomeScreenState extends State<HomeScreen> {
         _api.listarApostas(),
         _api.obterResumo(),
         _api.obterEvolucaoBanca(),
+        _api.obterLucroPorDia(),
+        _api.obterResumoPorCasa(),
       ]);
       setState(() {
         _apostas = resultados[0] as List<Aposta>;
         _resumo = resultados[1] as ResumoStats;
         _evolucao = resultados[2] as List<PontoEvolucaoBanca>;
+        _lucroPorDia = resultados[3] as List<PontoLucroDia>;
+        _resumoPorCasa = resultados[4] as List<ResumoPorCasa>;
       });
     } catch (e) {
       setState(() => _erro = 'Não consegui conectar com o servidor.\n$e');
@@ -181,6 +188,8 @@ class _HomeScreenState extends State<HomeScreen> {
         resumo: _resumo,
         evolucao: _evolucao,
         apostas: _apostas,
+        lucroPorDia: _lucroPorDia,
+        resumoPorCasa: _resumoPorCasa,
         onEditarBanca: () => _abrirDialogoBanca(),
         onRefresh: _carregarTudo,
       ),
