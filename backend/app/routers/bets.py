@@ -96,6 +96,21 @@ def ciclar_status(
     return atualizada
 
 
+@router.delete("/todas")
+def deletar_todas_apostas(
+    confirmacao: str,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
+    """Apaga TODAS as apostas do usuário logado. Exige que o cliente mande
+    o texto exato "APAGAR TUDO" como confirmação — é destrutivo e
+    irreversível, então não deve ser fácil de disparar sem querer."""
+    if confirmacao != "APAGAR TUDO":
+        raise HTTPException(status_code=400, detail='Confirmação incorreta. Mande confirmacao="APAGAR TUDO".')
+    apagadas = crud.deletar_todas_apostas(db, usuario.id)
+    return {"apagadas": apagadas}
+
+
 @router.delete("/{aposta_id}")
 def deletar_aposta(
     aposta_id: int,

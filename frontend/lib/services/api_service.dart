@@ -9,10 +9,19 @@ import '../models/casa.dart';
 import '../models/bloco_ocr.dart';
 import 'auth_service.dart';
 
+/// Ponto único de configuração da URL do backend.
+///
+/// - Web (testando local com `flutter run -d chrome`): 'http://localhost:8000'
+///   funciona direto, já que o navegador roda na mesma máquina que o backend.
+/// - Emulador Android: use 10.0.2.2 — é o IP especial que o emulador usa
+///   pra enxergar o "localhost" da sua máquina.
+/// - Celular físico na mesma rede Wi-Fi: troque pelo IP da sua máquina,
+///   ex: 'http://192.168.0.10:8000'.
+/// - Depois do deploy: troque pela URL pública do backend (ex: Render).
 class ApiConfig {
   static String get baseUrl {
-    if (kIsWeb) return 'https://smart-sheet-api.onrender.com';
-    return 'https://smart-sheet-api.onrender.com';
+    if (kIsWeb) return 'http://localhost:8000';
+    return 'http://10.0.2.2:8000';
   }
 }
 
@@ -115,6 +124,13 @@ class ApiService {
   Future<void> deletarAposta(int id) async {
     final resposta = await http.delete(_uri('/apostas/$id'), headers: _headers());
     _verificarErro(resposta);
+  }
+
+  Future<int> deletarTodasApostas() async {
+    final resposta = await http.delete(_uri('/apostas/todas', {'confirmacao': 'APAGAR TUDO'}), headers: _headers());
+    _verificarErro(resposta);
+    final json = jsonDecode(utf8.decode(resposta.bodyBytes));
+    return json['apagadas'] as int;
   }
 
   Future<void> deletarCasa(int id) async {

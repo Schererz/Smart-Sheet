@@ -183,6 +183,15 @@ def deletar_aposta(db: Session, usuario_id: int, aposta_id: int):
     return db_aposta
 
 
+def deletar_todas_apostas(db: Session, usuario_id: int) -> int:
+    """Apaga TODAS as apostas do usuário — usado antes de reimportar uma
+    planilha corrigida, pra não duplicar tudo. Não mexe nas casas nem na
+    configuração de banca, só nas apostas em si."""
+    apagadas = db.query(models.Bet).filter(models.Bet.usuario_id == usuario_id).delete()
+    db.commit()
+    return apagadas
+
+
 def obter_dataset_treino(db: Session, usuario_id: int, casa: str | None = None):
     """Monta os exemplos de treino: blocos que o OCR detectou + o que foi
     sugerido + o que realmente estava certo (os campos finais da aposta).

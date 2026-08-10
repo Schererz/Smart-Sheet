@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/aposta.dart';
 import '../models/casa.dart';
+import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/resumo_header.dart';
@@ -52,6 +53,63 @@ class DashboardScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _apagarTudo(BuildContext context) async {
+    final controlador = TextEditingController();
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.superficieAlta,
+        title: const Text('Apagar TODAS as apostas?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Isso não pode ser desfeito. Casas e a configuração de banca continuam, só as apostas somem.\n\nPra confirmar, digite APAGAR TUDO abaixo:',
+              style: TextStyle(fontSize: 13, color: AppColors.textoSecundario),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controlador,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: 'APAGAR TUDO'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controlador.text.trim() == 'APAGAR TUDO'),
+            child: const Text('Apagar tudo', style: TextStyle(color: AppColors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmou != true) {
+      if (context.mounted && controlador.text.trim().isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Texto não bateu com "APAGAR TUDO" — nada foi apagado.')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final quantidade = await ApiService().deletarTodasApostas();
+      await onRefresh();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$quantidade apostas apagadas.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Não consegui apagar: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,6 +132,7 @@ class DashboardScreen extends StatelessWidget {
             icon: const Icon(Icons.account_circle_outlined),
             onSelected: (valor) {
               if (valor == 'sair') _sair(context);
+              if (valor == 'apagar_tudo') _apagarTudo(context);
             },
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -82,6 +141,10 @@ class DashboardScreen extends StatelessWidget {
                   SessaoAtual.nomeUsuario ?? '',
                   style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textoSecundario),
                 ),
+              ),
+              const PopupMenuItem(
+                value: 'apagar_tudo',
+                child: Text('Apagar todas as apostas', style: TextStyle(color: AppColors.red)),
               ),
               const PopupMenuItem(value: 'sair', child: Text('Sair da conta')),
             ],
