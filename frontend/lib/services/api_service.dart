@@ -11,17 +11,17 @@ import 'auth_service.dart';
 
 /// Ponto único de configuração da URL do backend.
 ///
-/// - Web (testando local com `flutter run -d chrome`): 'http://localhost:8000'
+/// - Web (testando local com `flutter run -d chrome`): 'https://smart-sheet-1-c0xr.onrender.com'
 ///   funciona direto, já que o navegador roda na mesma máquina que o backend.
 /// - Emulador Android: use 10.0.2.2 — é o IP especial que o emulador usa
 ///   pra enxergar o "localhost" da sua máquina.
 /// - Celular físico na mesma rede Wi-Fi: troque pelo IP da sua máquina,
-///   ex: 'http://192.168.0.10:8000'.
+///   ex: 'https://smart-sheet-1-c0xr.onrender.com'.
 /// - Depois do deploy: troque pela URL pública do backend (ex: Render).
 class ApiConfig {
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000';
-    return 'http://10.0.2.2:8000';
+    if (kIsWeb) return 'https://smart-sheet-1-c0xr.onrender.com';
+    return 'https://smart-sheet-1-c0xr.onrender.com';
   }
 }
 
