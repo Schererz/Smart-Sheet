@@ -20,8 +20,8 @@ import 'auth_service.dart';
 /// - Depois do deploy: troque pela URL pública do backend (ex: Render).
 class ApiConfig {
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000';
-    return 'http://10.0.2.2:8000';
+    if (kIsWeb) return 'https://localhost:8000';
+    return 'https://10.0.2.2:8000';
   }
 }
 
