@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/aposta.dart';
 import '../models/casa.dart';
 import '../theme/app_theme.dart';
+import '../utils/resumo_calculado.dart';
 import 'evolucao_banca_chart.dart';
 import 'lucro_chart.dart';
 import 'lucro_por_dia_list.dart';
@@ -53,10 +54,15 @@ class _ResumoHeaderState extends State<ResumoHeader> {
     return widget.apostas.where((a) => !a.data.isBefore(corte)).toList();
   }
 
+  /// Estatísticas recalculadas em cima da lista já filtrada por período —
+  /// é isso que faz os números baterem com o que o gráfico mostra.
+  ResumoCalculado get _resumoFiltrado => calcularResumoLocal(_apostasFiltradas);
+
   @override
   Widget build(BuildContext context) {
     final formatoMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-    final corLucro = widget.resumo.lucroTotal >= 0 ? AppColors.green : AppColors.red;
+    final resumoPeriodo = _resumoFiltrado;
+    final corLucroPeriodo = resumoPeriodo.lucroTotal >= 0 ? AppColors.green : AppColors.red;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
@@ -90,13 +96,14 @@ class _ResumoHeaderState extends State<ResumoHeader> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            '${widget.resumo.lucroTotal >= 0 ? '+' : ''}${formatoMoeda.format(widget.resumo.lucroTotal)} desde o início',
-            style: TextStyle(color: corLucro, fontSize: 13, fontWeight: FontWeight.w600),
-          ),
           const SizedBox(height: 16),
           SeletorPeriodo(selecionado: _periodo, onSelecionar: (p) => setState(() => _periodo = p)),
+          const SizedBox(height: 10),
+          Text(
+            '${resumoPeriodo.lucroTotal >= 0 ? '+' : ''}${formatoMoeda.format(resumoPeriodo.lucroTotal)}'
+            '${_periodo == PeriodoFiltro.tudo ? ' desde o início' : ' no período selecionado'}',
+            style: TextStyle(color: corLucroPeriodo, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 14),
           EvolucaoBancaChart(pontos: _evolucaoFiltrada),
           const SizedBox(height: 18),
@@ -106,11 +113,11 @@ class _ResumoHeaderState extends State<ResumoHeader> {
           const SizedBox(height: 14),
           Row(
             children: [
-              _Estatistica(rotulo: 'Apostas', valor: '${widget.resumo.totalApostas}'),
-              _Estatistica(rotulo: 'ROI', valor: widget.resumo.roi != null ? '${widget.resumo.roi!.toStringAsFixed(1)}%' : '—'),
+              _Estatistica(rotulo: 'Apostas', valor: '${resumoPeriodo.totalApostas}'),
+              _Estatistica(rotulo: 'ROI', valor: resumoPeriodo.roi != null ? '${resumoPeriodo.roi!.toStringAsFixed(1)}%' : '—'),
               _Estatistica(
                 rotulo: 'Acerto',
-                valor: widget.resumo.taxaAcerto != null ? '${widget.resumo.taxaAcerto!.toStringAsFixed(0)}%' : '—',
+                valor: resumoPeriodo.taxaAcerto != null ? '${resumoPeriodo.taxaAcerto!.toStringAsFixed(0)}%' : '—',
               ),
             ],
           ),
@@ -119,15 +126,15 @@ class _ResumoHeaderState extends State<ResumoHeader> {
             children: [
               _Estatistica(
                 rotulo: 'Odd média',
-                valor: widget.resumo.oddMedia != null ? widget.resumo.oddMedia!.toStringAsFixed(2) : '—',
+                valor: resumoPeriodo.oddMedia != null ? resumoPeriodo.oddMedia!.toStringAsFixed(2) : '—',
               ),
               _Estatistica(
                 rotulo: 'Ticket médio',
-                valor: widget.resumo.valorMedioApostado != null
-                    ? formatoMoeda.format(widget.resumo.valorMedioApostado)
+                valor: resumoPeriodo.valorMedioApostado != null
+                    ? formatoMoeda.format(resumoPeriodo.valorMedioApostado)
                     : '—',
               ),
-              _Estatistica(rotulo: 'Em aberto', valor: '${widget.resumo.apostasEmAberto}'),
+              _Estatistica(rotulo: 'Em aberto', valor: '${resumoPeriodo.apostasEmAberto}'),
             ],
           ),
           const SizedBox(height: 22),

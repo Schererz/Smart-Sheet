@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:intl/intl.dart';
 
 import '../models/aposta.dart';
@@ -70,6 +71,9 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
       if (r?.aumentoPercentual != null) {
         _turbinada = true;
         _aumentoPercentual = r!.aumentoPercentual;
+      }
+      if (r?.dataSugerida != null) {
+        _data = r!.dataSugerida!;
       }
       _resultado = r?.resultadoSugerido != null ? resultadoFromString(r!.resultadoSugerido!) : ResultadoAposta.aberto;
     }
@@ -240,12 +244,52 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
                   ],
                 ),
               ),
+            if (vindoDoOcr && widget.rascunho?.textoLimpo != null && widget.rascunho!.textoLimpo!.trim().isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(color: AppColors.superficie, borderRadius: BorderRadius.circular(10)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Se algum campo veio errado, copie o texto abaixo e cole na descrição:',
+                            style: TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy_outlined, size: 18),
+                          color: AppColors.destaque,
+                          tooltip: 'Copiar',
+                          onPressed: () async {
+                            await Clipboard.setData(ClipboardData(text: widget.rascunho!.textoLimpo!));
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Copiado!')),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    SelectableText(
+                      widget.rascunho!.textoLimpo!,
+                      style: const TextStyle(fontSize: 13, color: AppColors.textoPrimario),
+                    ),
+                  ],
+                ),
+              ),
             if (vindoDoOcr && widget.blocosOcr != null && widget.blocosOcr!.isNotEmpty)
               Theme(
                 data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
                   tilePadding: EdgeInsets.zero,
-                  title: const Text('Ver texto lido (debug)', style: TextStyle(fontSize: 12.5, color: AppColors.textoSecundario)),
+                  title: const Text('Ver texto bruto (debug)', style: TextStyle(fontSize: 12.5, color: AppColors.textoSecundario)),
                   collapsedIconColor: AppColors.textoSecundario,
                   iconColor: AppColors.textoSecundario,
                   children: [

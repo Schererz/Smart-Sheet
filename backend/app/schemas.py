@@ -113,6 +113,8 @@ class RascunhoAposta(BaseModel):
     aumento_percentual: float | None = None
     descricao: str | None = None
     resultado_sugerido: str | None = None  # "aberto" / "green" / "red", se a imagem já mostrar isso
+    data_sugerida: date | None = None  # data extraída da imagem, se achou alguma
+    texto_limpo: str | None = None  # texto sem ruído, pra copiar manualmente se a extração falhar
 
 
 class BetBase(BaseModel):

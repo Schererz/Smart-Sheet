@@ -44,6 +44,8 @@ class RascunhoAposta {
   final double? aumentoPercentual;
   final String? descricao;
   final String? resultadoSugerido;
+  final DateTime? dataSugerida;
+  final String? textoLimpo;
 
   RascunhoAposta({
     this.odd,
@@ -52,6 +54,8 @@ class RascunhoAposta {
     this.aumentoPercentual,
     this.descricao,
     this.resultadoSugerido,
+    this.dataSugerida,
+    this.textoLimpo,
   });
 
   factory RascunhoAposta.fromJson(Map<String, dynamic> json) {
@@ -62,6 +66,8 @@ class RascunhoAposta {
       aumentoPercentual: (json['aumento_percentual'] as num?)?.toDouble(),
       descricao: json['descricao'] as String?,
       resultadoSugerido: json['resultado_sugerido'] as String?,
+      dataSugerida: json['data_sugerida'] != null ? DateTime.parse(json['data_sugerida'] as String) : null,
+      textoLimpo: json['texto_limpo'] as String?,
     );
   }
 
