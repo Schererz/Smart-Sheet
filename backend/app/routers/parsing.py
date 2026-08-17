@@ -478,6 +478,14 @@ def _descricao_por_linha_com_boost(texto: str) -> str | None:
     return None
 
 
+def _odd_com_boost(texto: str) -> float | None:
+    """Extrai a odd TURBINADA/final quando aparece no formato "odd original
+    »/>> odd final" (ex: "2.60 >>> 3.60") — a Betano e a Bet365 usam esse
+    mesmo padrão visual de boost, então esse helper é usado pelas duas."""
+    m = re.search(r'(\d+[.,]\d{2})\s*[»>]+\s*(\d+[.,]\d{2})', texto)
+    return _num(m.group(2)) if m else None
+
+
 def parser_betano(texto: str) -> RascunhoAposta:
     # Apostas de "N seleções" (múltiplas apostas combinadas, cada uma com
     # confronto próprio) têm um cabeçalho diferente das Simples/Dupla/
@@ -502,12 +510,10 @@ def parser_betano(texto: str) -> RascunhoAposta:
         bonus = None
 
     if odd is None:
-        m_odd_boost = re.search(r'(\d+[.,]\d{2})\s*[»>]+\s*(\d+[.,]\d{2})', texto)
-        if m_odd_boost:
-            odd = _num(m_odd_boost.group(2))
-        else:
-            m_odd = re.search(r'Criar Aposta\D{0,20}?(\d+[.,]\d{2})', texto, re.IGNORECASE)
-            odd = _num(m_odd.group(1)) if m_odd else None
+        odd = _odd_com_boost(texto)
+    if odd is None:
+        m_odd = re.search(r'Criar Aposta\D{0,20}?(\d+[.,]\d{2})', texto, re.IGNORECASE)
+        odd = _num(m_odd.group(1)) if m_odd else None
 
     if odd is None:
         # formato "◆ Seleção... 3.95 4.90" — pega o segundo número (o turbinado/final)
@@ -594,10 +600,8 @@ def parser_bet365(texto: str) -> RascunhoAposta:
     valor = _buscar(r'R\s*\$\s*([\d.,]+)\s*(?:Criar Aposta|Simples|Dupla|M[úu]ltipla)', texto) \
         or _buscar(r'Aposta\s*R\s*\$\s*([\d.,]+)', texto)
 
-    m_odd_boost = re.search(r'(\d+[.,]\d{2})\s*[»>]+\s*(\d+[.,]\d{2})', texto)
-    if m_odd_boost:
-        odd = _num(m_odd_boost.group(2))
-    else:
+    odd = _odd_com_boost(texto)
+    if odd is None:
         m_odd = re.search(r'CRIAR APOSTA\D{0,15}?(\d+[.,]\d{2})', texto, re.IGNORECASE)
         odd = _num(m_odd.group(1)) if m_odd else None
 
@@ -636,13 +640,6 @@ def parser_betnacional(texto: str) -> RascunhoAposta:
     )
 
 
-PADRAO_CONFRONTO_TOLERANTE_DATA = re.compile(
-    r'^([A-ZÀ-Ú][\wéãçóáíúÀ-Ú .\-]+?)\s+(?:vs\.?|x)\s+([A-ZÀ-Ú][\wéãçóáíúÀ-Ú .\-]+?)'
-    r'(?:\s+(?:ABERTO|AO VIVO|GANHOU|GANHA|GANHADA|PERDIDA|PERDEU))?'
-    r'(?:\s+\d{1,2}\s*/\s*\d{1,2}.*)?$'
-)
-
-
 def _descricao_esportivabet(texto: str) -> str | None:
     """A EsportivaBet/EstrelaBet costuma repetir o confronto duas vezes
     (uma no cabeçalho, outra "limpa" perto da descrição do mercado — às
@@ -651,17 +648,11 @@ def _descricao_esportivabet(texto: str) -> str | None:
     ser a descrição real do mercado escolhido (ex: "Ambos os tempos mais
     de 0.5 gols") — junta as duas quando faz sentido."""
     linhas = _linhas_uteis(texto)
-    indices, textos = [], []
-    for i, linha in enumerate(linhas):
-        m = PADRAO_CONFRONTO_TOLERANTE_DATA.match(linha)
-        if m and not re.search(r'\d', m.group(1)) and not re.search(r'\d', m.group(2)):
-            indices.append(i)
-            textos.append(f"{m.group(1).strip()} x {m.group(2).strip()}")
-
-    if not indices:
+    confronto = _encontrar_linha_confronto(linhas)
+    if not confronto:
         return None
 
-    indice_final, confronto_texto = indices[-1], textos[-1]
+    indice_final, confronto_texto = confronto
 
     if indice_final > 0:
         candidato = linhas[indice_final - 1]

@@ -1,4 +1,6 @@
-from datetime import date
+from datetime import date, datetime, timedelta
+import secrets
+
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -116,7 +118,7 @@ def criar_aposta(db: Session, usuario_id: int, aposta: schemas.BetCreate):
     return db_aposta
 
 
-def listar_apostas(db: Session, usuario_id: int, skip: int = 0, limit: int = 200):
+def listar_apostas(db: Session, usuario_id: int, skip: int = 0, limit: int = 10_000):
     return (
         db.query(models.Bet)
         .filter(models.Bet.usuario_id == usuario_id)
@@ -329,3 +331,50 @@ def obter_lucro_por_dia(db: Session, usuario_id: int) -> list[dict]:
         {"data": dia, "lucro": round(dados["lucro"], 2), "total_apostas": dados["total_apostas"]}
         for dia, dados in sorted(por_dia.items())
     ]
+
+
+# ---------------- Vínculo com o bot do Telegram ----------------
+
+def gerar_codigo_vinculo_telegram(db: Session, usuario_id: int) -> tuple[str, datetime]:
+    """Gera um código de 6 dígitos válido por 10 minutos — o usuário manda
+    esse código pro bot no Telegram pra vincular a conta."""
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    codigo = f"{secrets.randbelow(1_000_000):06d}"
+    expira_em = datetime.utcnow() + timedelta(minutes=10)
+    usuario.telegram_codigo_vinculo = codigo
+    usuario.telegram_codigo_expira_em = expira_em
+    db.commit()
+    return codigo, expira_em
+
+
+def status_telegram(db: Session, usuario_id: int) -> bool:
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    return usuario.telegram_chat_id is not None
+
+
+def desconectar_telegram(db: Session, usuario_id: int) -> None:
+    usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
+    usuario.telegram_chat_id = None
+    usuario.telegram_codigo_vinculo = None
+    usuario.telegram_codigo_expira_em = None
+    db.commit()
+
+
+def vincular_telegram_por_codigo(db: Session, codigo: str, chat_id: str) -> models.Usuario | None:
+    """Usado pelo webhook: acha o usuário dono desse código (ainda válido)
+    e vincula o chat_id dele. Devolve None se o código não bateu com
+    ninguém ou já expirou."""
+    usuario = db.query(models.Usuario).filter(models.Usuario.telegram_codigo_vinculo == codigo).first()
+    if not usuario or not usuario.telegram_codigo_expira_em:
+        return None
+    if usuario.telegram_codigo_expira_em < datetime.utcnow():
+        return None
+    usuario.telegram_chat_id = str(chat_id)
+    usuario.telegram_codigo_vinculo = None
+    usuario.telegram_codigo_expira_em = None
+    db.commit()
+    return usuario
+
+
+def obter_usuario_por_chat_id(db: Session, chat_id) -> models.Usuario | None:
+    return db.query(models.Usuario).filter(models.Usuario.telegram_chat_id == str(chat_id)).first()

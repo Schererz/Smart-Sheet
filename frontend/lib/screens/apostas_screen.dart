@@ -33,6 +33,8 @@ class ApostasScreen extends StatefulWidget {
 
 class _ApostasScreenState extends State<ApostasScreen> {
   FiltroApostas _filtro = const FiltroApostas();
+  int _paginaAtual = 0; // começa em 0 internamente, mostrado como "página 1" pro usuário
+  int _itensPorPagina = 25;
 
   List<String> get _casasDisponiveis {
     final nomes = widget.apostas.map((a) => a.casaDeApostas).toSet().toList();
@@ -68,12 +70,23 @@ class _ApostasScreenState extends State<ApostasScreen> {
       filtroAtual: _filtro,
       casasDisponiveis: _casasDisponiveis,
     );
-    if (novoFiltro != null) setState(() => _filtro = novoFiltro);
+    if (novoFiltro != null) {
+      setState(() {
+        _filtro = novoFiltro;
+        _paginaAtual = 0; // volta pra primeira página — a antiga pode nem existir mais no resultado filtrado
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final apostasFiltradas = _filtro.aplicar(widget.apostas);
+
+    final totalPaginas = apostasFiltradas.isEmpty ? 1 : (apostasFiltradas.length / _itensPorPagina).ceil();
+    final paginaSegura = _paginaAtual.clamp(0, totalPaginas - 1);
+    final inicio = paginaSegura * _itensPorPagina;
+    final fim = (inicio + _itensPorPagina).clamp(0, apostasFiltradas.length);
+    final apostasDaPagina = apostasFiltradas.sublist(inicio, fim);
 
     return Scaffold(
       appBar: AppBar(
@@ -101,30 +114,35 @@ class _ApostasScreenState extends State<ApostasScreen> {
                     ? _EstadoVazio(temFiltro: _filtro.temFiltroAtivo)
                     : Column(
                         children: [
-                          if (_filtro.temFiltroAtivo)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${apostasFiltradas.length} de ${widget.apostas.length} apostas',
-                                      style: const TextStyle(color: AppColors.textoSecundario, fontSize: 12.5),
-                                    ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _filtro.temFiltroAtivo
+                                        ? '${apostasFiltradas.length} de ${widget.apostas.length} apostas'
+                                        : '${apostasFiltradas.length} apostas',
+                                    style: const TextStyle(color: AppColors.textoSecundario, fontSize: 12.5),
                                   ),
+                                ),
+                                if (_filtro.temFiltroAtivo)
                                   TextButton(
-                                    onPressed: () => setState(() => _filtro = const FiltroApostas()),
+                                    onPressed: () => setState(() {
+                                      _filtro = const FiltroApostas();
+                                      _paginaAtual = 0;
+                                    }),
                                     child: const Text('Limpar filtro', style: TextStyle(fontSize: 12.5)),
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
+                          ),
                           Expanded(
                             child: Builder(
                               builder: (context) {
-                                final grupos = _agruparPorDia(apostasFiltradas);
+                                final grupos = _agruparPorDia(apostasDaPagina);
                                 return ListView.builder(
-                                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                                   itemCount: grupos.length,
                                   itemBuilder: (context, indiceGrupo) {
                                     final grupo = grupos[indiceGrupo];
@@ -151,8 +169,106 @@ class _ApostasScreenState extends State<ApostasScreen> {
                               },
                             ),
                           ),
+                          _BarraPaginacao(
+                            paginaAtual: paginaSegura,
+                            totalPaginas: totalPaginas,
+                            itensPorPagina: _itensPorPagina,
+                            onIrPara: (p) => setState(() => _paginaAtual = p),
+                            onMudarItensPorPagina: (n) => setState(() {
+                              _itensPorPagina = n;
+                              _paginaAtual = 0;
+                            }),
+                          ),
                         ],
                       ),
+      ),
+    );
+  }
+}
+
+class _BarraPaginacao extends StatelessWidget {
+  final int paginaAtual; // 0-indexed
+  final int totalPaginas;
+  final int itensPorPagina;
+  final ValueChanged<int> onIrPara;
+  final ValueChanged<int> onMudarItensPorPagina;
+
+  const _BarraPaginacao({
+    required this.paginaAtual,
+    required this.totalPaginas,
+    required this.itensPorPagina,
+    required this.onIrPara,
+    required this.onMudarItensPorPagina,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final naPrimeira = paginaAtual == 0;
+    final naUltima = paginaAtual >= totalPaginas - 1;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: AppColors.superficieAlta,
+        border: Border(top: BorderSide(color: AppColors.borda)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          PopupMenuButton<int>(
+            tooltip: 'Apostas por página',
+            initialValue: itensPorPagina,
+            color: AppColors.superficieAlta,
+            onSelected: onMudarItensPorPagina,
+            itemBuilder: (_) => const [20, 25, 50, 100]
+                .map((n) => PopupMenuItem(value: n, child: Text('$n por página')))
+                .toList(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('$itensPorPagina', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const Icon(Icons.arrow_drop_down, color: AppColors.textoSecundario, size: 18),
+              ],
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Primeira página',
+                onPressed: naPrimeira ? null : () => onIrPara(0),
+                icon: const Icon(Icons.first_page, size: 20),
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                tooltip: 'Página anterior',
+                onPressed: naPrimeira ? null : () => onIrPara(paginaAtual - 1),
+                icon: const Icon(Icons.chevron_left, size: 20),
+                visualDensity: VisualDensity.compact,
+              ),
+              SizedBox(
+                width: 84,
+                child: Text(
+                  'Pág. ${paginaAtual + 1} de $totalPaginas',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Próxima página',
+                onPressed: naUltima ? null : () => onIrPara(paginaAtual + 1),
+                icon: const Icon(Icons.chevron_right, size: 20),
+                visualDensity: VisualDensity.compact,
+              ),
+              IconButton(
+                tooltip: 'Última página',
+                onPressed: naUltima ? null : () => onIrPara(totalPaginas - 1),
+                icon: const Icon(Icons.last_page, size: 20),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

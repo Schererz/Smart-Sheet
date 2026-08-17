@@ -20,7 +20,7 @@ def criar_aposta(
 @router.get("/", response_model=list[schemas.BetOut])
 def listar_apostas(
     skip: int = 0,
-    limit: int = 200,
+    limit: int = 10_000,  # alto o bastante pra cobrir o uso real de uma pessoa; a paginação de exibição é feita no app
     db: Session = Depends(get_db),
     usuario: models.Usuario = Depends(obter_usuario_atual),
 ):

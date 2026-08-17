@@ -5,6 +5,7 @@ import '../models/casa.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/dialogo_telegram.dart';
 import '../widgets/resumo_header.dart';
 import 'importar_planilha_screen.dart';
 import 'login_screen.dart';
@@ -133,6 +134,7 @@ class DashboardScreen extends StatelessWidget {
             onSelected: (valor) {
               if (valor == 'sair') _sair(context);
               if (valor == 'apagar_tudo') _apagarTudo(context);
+              if (valor == 'telegram') abrirDialogoTelegram(context);
             },
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -142,6 +144,7 @@ class DashboardScreen extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textoSecundario),
                 ),
               ),
+              const PopupMenuItem(value: 'telegram', child: Text('Conectar Telegram')),
               const PopupMenuItem(
                 value: 'apagar_tudo',
                 child: Text('Apagar todas as apostas', style: TextStyle(color: AppColors.red)),

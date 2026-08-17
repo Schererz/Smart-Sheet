@@ -31,6 +31,7 @@ def proximo_status(atual: ResultadoAposta) -> ResultadoAposta:
 class OrigemRegistro(str, enum.Enum):
     manual = "manual"
     ocr = "ocr"
+    telegram = "telegram"
 
 
 class Usuario(Base):
@@ -43,6 +44,13 @@ class Usuario(Base):
     senha_hash = Column(String(200), nullable=False)
     token = Column(String(64), nullable=True, unique=True, index=True)
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Vínculo com o bot do Telegram (opcional). O chat_id só é preenchido
+    # depois que o usuário confirma o código gerado no app. O código de
+    # vínculo é temporário — expira sozinho depois de alguns minutos.
+    telegram_chat_id = Column(String(64), nullable=True, unique=True, index=True)
+    telegram_codigo_vinculo = Column(String(10), nullable=True)
+    telegram_codigo_expira_em = Column(DateTime, nullable=True)
 
 
 class Configuracao(Base):
