@@ -62,7 +62,7 @@ async def webhook(
         return {"ok": True}  # outros tipos de update (callback, etc) — ignora
 
     chat_id = mensagem.get("chat", {}).get("id")
-    texto = (mensagem.get("text") or "").strip()
+    texto = (mensagem.get("text") or mensagem.get("caption") or "").strip()
     if not chat_id or not texto:
         return {"ok": True}
 
