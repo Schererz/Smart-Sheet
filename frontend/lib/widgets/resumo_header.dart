@@ -34,28 +34,45 @@ class ResumoHeader extends StatefulWidget {
 }
 
 class _ResumoHeaderState extends State<ResumoHeader> {
-  PeriodoFiltro _periodo = PeriodoFiltro.tudo;
+  PeriodoSelecionado _periodo = PeriodoSelecionado.tudo;
 
   List<PontoEvolucaoBanca> get _evolucaoFiltrada {
-    final corte = _periodo.dataDeCorte();
-    if (corte == null) return widget.evolucao;
-    final filtrado = widget.evolucao.where((p) => !p.data.isBefore(corte)).toList();
-    // mantém pelo menos 1 ponto antes do corte como referência de partida, se existir
-    if (filtrado.length < widget.evolucao.length) {
-      final indiceAnterior = widget.evolucao.length - filtrado.length - 1;
-      if (indiceAnterior >= 0) return [widget.evolucao[indiceAnterior], ...filtrado];
+    final inicio = _periodo.inicio;
+    final fim = _periodo.fim;
+    if (inicio == null && fim == null) return widget.evolucao;
+
+    var lista = widget.evolucao;
+
+    
+    if (inicio != null) {
+      final indicePrimeiro = lista.indexWhere((p) => !p.data.isBefore(inicio));
+      if (indicePrimeiro == -1) {
+        lista = const [];
+      } else if (indicePrimeiro > 0) {
+        lista = lista.sublist(indicePrimeiro - 1);
+      } else {
+        lista = lista.sublist(indicePrimeiro);
+      }
     }
-    return filtrado;
+
+    if (fim != null) {
+      lista = lista.where((p) => !p.data.isAfter(fim)).toList();
+    }
+
+    return lista;
   }
 
   List<Aposta> get _apostasFiltradas {
-    final corte = _periodo.dataDeCorte();
-    if (corte == null) return widget.apostas;
-    return widget.apostas.where((a) => !a.data.isBefore(corte)).toList();
+    final inicio = _periodo.inicio;
+    final fim = _periodo.fim;
+    return widget.apostas.where((a) {
+      if (inicio != null && a.data.isBefore(inicio)) return false;
+      if (fim != null && a.data.isAfter(fim)) return false;
+      return true;
+    }).toList();
   }
 
-  /// Estatísticas recalculadas em cima da lista já filtrada por período —
-  /// é isso que faz os números baterem com o que o gráfico mostra.
+
   ResumoCalculado get _resumoFiltrado => calcularResumoLocal(_apostasFiltradas);
 
   @override
@@ -63,6 +80,7 @@ class _ResumoHeaderState extends State<ResumoHeader> {
     final formatoMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     final resumoPeriodo = _resumoFiltrado;
     final corLucroPeriodo = resumoPeriodo.lucroTotal >= 0 ? AppColors.green : AppColors.red;
+    final eTudo = !_periodo.ehPersonalizado && _periodo.preset == PeriodoFiltro.tudo;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
@@ -101,7 +119,7 @@ class _ResumoHeaderState extends State<ResumoHeader> {
           const SizedBox(height: 10),
           Text(
             '${resumoPeriodo.lucroTotal >= 0 ? '+' : ''}${formatoMoeda.format(resumoPeriodo.lucroTotal)}'
-            '${_periodo == PeriodoFiltro.tudo ? ' desde o início' : ' no período selecionado'}',
+            '${eTudo ? ' desde o início' : ' no período selecionado'}',
             style: TextStyle(color: corLucroPeriodo, fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 14),

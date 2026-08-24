@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+import re
 import secrets
 
 from sqlalchemy.orm import Session
@@ -27,8 +28,7 @@ def atualizar_banca_inicial(db: Session, usuario_id: int, valor: float) -> model
 
 
 def obter_evolucao_banca(db: Session, usuario_id: int):
-    """Monta a curva da banca ao longo do tempo: começa na banca inicial e
-    soma o lucro de cada aposta resolvida (green/red), em ordem cronológica."""
+    
     config = obter_configuracao(db, usuario_id)
     resolvidas = (
         db.query(models.Bet)
@@ -50,15 +50,30 @@ def obter_evolucao_banca(db: Session, usuario_id: int):
     return pontos
 
 
+def _chave_normalizada(nome: str) -> str:
+    return re.sub(r'\s+', '', nome.strip().lower())
+
+
+def canonicalizar_nome_casa(db: Session, usuario_id: int, nome_bruto: str) -> str:
+
+    chave = _chave_normalizada(nome_bruto)
+    casas = db.query(models.Casa).filter(models.Casa.usuario_id == usuario_id).all()
+    for casa in casas:
+        if _chave_normalizada(casa.nome) == chave:
+            return casa.nome
+    return nome_bruto.strip()
+
+
 def criar_casa(db: Session, usuario_id: int, nome: str):
+    nome_canonico = canonicalizar_nome_casa(db, usuario_id, nome)
     existente = (
         db.query(models.Casa)
-        .filter(models.Casa.usuario_id == usuario_id, func.lower(models.Casa.nome) == nome.strip().lower())
+        .filter(models.Casa.usuario_id == usuario_id, func.lower(models.Casa.nome) == nome_canonico.lower())
         .first()
     )
     if existente:
         return existente, False
-    nova = models.Casa(usuario_id=usuario_id, nome=nome.strip())
+    nova = models.Casa(usuario_id=usuario_id, nome=nome_canonico)
     db.add(nova)
     db.commit()
     db.refresh(nova)
@@ -103,6 +118,10 @@ def registrar_uso_casa(db: Session, usuario_id: int, nome: str):
 
 def criar_aposta(db: Session, usuario_id: int, aposta: schemas.BetCreate):
     dados = aposta.model_dump()
+
+
+    dados["casa_de_apostas"] = canonicalizar_nome_casa(db, usuario_id, dados["casa_de_apostas"])
+
     if dados.get("aumento_percentual"):
         dados["retorno_potencial"] = models.calcular_retorno_com_aumento(
             dados["valor_apostado"], dados["odd"], dados["aumento_percentual"]
@@ -112,7 +131,7 @@ def criar_aposta(db: Session, usuario_id: int, aposta: schemas.BetCreate):
     lucro = models.calcular_lucro(dados["valor_apostado"], dados["retorno_potencial"], dados["resultado"], dados["odd"])
     db_aposta = models.Bet(**dados, usuario_id=usuario_id, lucro=lucro)
     db.add(db_aposta)
-    registrar_uso_casa(db, usuario_id, aposta.casa_de_apostas)
+    registrar_uso_casa(db, usuario_id, dados["casa_de_apostas"])
     db.commit()
     db.refresh(db_aposta)
     return db_aposta
@@ -186,18 +205,14 @@ def deletar_aposta(db: Session, usuario_id: int, aposta_id: int):
 
 
 def deletar_todas_apostas(db: Session, usuario_id: int) -> int:
-    """Apaga TODAS as apostas do usuário — usado antes de reimportar uma
-    planilha corrigida, pra não duplicar tudo. Não mexe nas casas nem na
-    configuração de banca, só nas apostas em si."""
+
     apagadas = db.query(models.Bet).filter(models.Bet.usuario_id == usuario_id).delete()
     db.commit()
     return apagadas
 
 
 def obter_dataset_treino(db: Session, usuario_id: int, casa: str | None = None):
-    """Monta os exemplos de treino: blocos que o OCR detectou + o que foi
-    sugerido + o que realmente estava certo (os campos finais da aposta).
-    Só considera apostas que vieram de OCR e têm os blocos guardados."""
+    
     query = db.query(models.Bet).filter(
         models.Bet.usuario_id == usuario_id,
         models.Bet.origem == models.OrigemRegistro.ocr,
@@ -306,9 +321,7 @@ def obter_resumo_por_casa(db: Session, usuario_id: int) -> list[dict]:
 
 
 def obter_lucro_por_dia(db: Session, usuario_id: int) -> list[dict]:
-    """Agrupa o lucro das apostas resolvidas por data. Devolve TODO o
-    histórico (do primeiro dia até hoje) — o app decide se mostra os
-    últimos 5 dias ou tudo, sem precisar pedir de novo ao servidor."""
+    
     apostas = (
         db.query(models.Bet)
         .filter(
@@ -336,8 +349,7 @@ def obter_lucro_por_dia(db: Session, usuario_id: int) -> list[dict]:
 # ---------------- Vínculo com o bot do Telegram ----------------
 
 def gerar_codigo_vinculo_telegram(db: Session, usuario_id: int) -> tuple[str, datetime]:
-    """Gera um código de 6 dígitos válido por 10 minutos — o usuário manda
-    esse código pro bot no Telegram pra vincular a conta."""
+
     usuario = db.query(models.Usuario).filter(models.Usuario.id == usuario_id).first()
     codigo = f"{secrets.randbelow(1_000_000):06d}"
     expira_em = datetime.utcnow() + timedelta(minutes=10)
@@ -361,9 +373,7 @@ def desconectar_telegram(db: Session, usuario_id: int) -> None:
 
 
 def vincular_telegram_por_codigo(db: Session, codigo: str, chat_id: str) -> models.Usuario | None:
-    """Usado pelo webhook: acha o usuário dono desse código (ainda válido)
-    e vincula o chat_id dele. Devolve None se o código não bateu com
-    ninguém ou já expirou."""
+
     usuario = db.query(models.Usuario).filter(models.Usuario.telegram_codigo_vinculo == codigo).first()
     if not usuario or not usuario.telegram_codigo_expira_em:
         return None

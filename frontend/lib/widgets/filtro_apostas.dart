@@ -4,25 +4,29 @@ import 'seletor_periodo.dart';
 class FiltroApostas {
   final String? casa;
   final ResultadoAposta? status;
-  final PeriodoFiltro periodo;
+  final PeriodoSelecionado periodo;
   final String busca;
 
   const FiltroApostas({
     this.casa,
     this.status,
-    this.periodo = PeriodoFiltro.tudo,
+    this.periodo = PeriodoSelecionado.tudo,
     this.busca = '',
   });
 
-  bool get temFiltroAtivo => casa != null || status != null || periodo != PeriodoFiltro.tudo || busca.isNotEmpty;
+  bool get temFiltroAtivo =>
+      casa != null || status != null || periodo != PeriodoSelecionado.tudo || busca.isNotEmpty;
 
   int get quantidadeAtiva =>
-      (casa != null ? 1 : 0) + (status != null ? 1 : 0) + (periodo != PeriodoFiltro.tudo ? 1 : 0) + (busca.isNotEmpty ? 1 : 0);
+      (casa != null ? 1 : 0) +
+      (status != null ? 1 : 0) +
+      (periodo != PeriodoSelecionado.tudo ? 1 : 0) +
+      (busca.isNotEmpty ? 1 : 0);
 
   FiltroApostas copyWith({
     String? Function()? casa,
     ResultadoAposta? Function()? status,
-    PeriodoFiltro? periodo,
+    PeriodoSelecionado? periodo,
     String? busca,
   }) {
     return FiltroApostas(
@@ -41,9 +45,13 @@ class FiltroApostas {
     if (status != null) {
       resultado = resultado.where((a) => a.resultado == status).toList();
     }
-    final corte = periodo.dataDeCorte();
-    if (corte != null) {
-      resultado = resultado.where((a) => !a.data.isBefore(corte)).toList();
+    final inicio = periodo.inicio;
+    final fim = periodo.fim;
+    if (inicio != null) {
+      resultado = resultado.where((a) => !a.data.isBefore(inicio)).toList();
+    }
+    if (fim != null) {
+      resultado = resultado.where((a) => !a.data.isAfter(fim)).toList();
     }
     if (busca.isNotEmpty) {
       final termo = busca.toLowerCase();
