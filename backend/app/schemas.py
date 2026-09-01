@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from .models import ResultadoAposta, OrigemRegistro
+from .models import ResultadoAposta, OrigemRegistro, TipoMovimentacao
 
 
 class UsuarioCreate(BaseModel):
@@ -86,6 +86,34 @@ class ResumoPorCasa(BaseModel):
     banca_inicial: float | None
     banca_atual: float | None
     roi_banca: float | None  # lucro / banca inicial DA CASA, em % (só existe se a banca da casa foi definida)
+
+class MovimentacaoCreate(BaseModel):
+    casa_id: int
+    tipo: TipoMovimentacao
+    valor: float
+    data: date = date.today()
+
+
+class MovimentacaoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    casa_id: int
+    tipo: TipoMovimentacao
+    valor: float
+    data: date
+    criado_em: datetime
+
+
+class ItemBancaLocalizacao(BaseModel):
+    casa: str
+    valor: float
+
+
+class BancaPorLocalizacao(BaseModel):
+    banco: float  # dinheiro fora de qualquer casa, disponível pra depositar
+    casas: list[ItemBancaLocalizacao]
+    total: float  # deve ser sempre igual à banca_atual global
 
 
 class PontoLucroDia(BaseModel):
