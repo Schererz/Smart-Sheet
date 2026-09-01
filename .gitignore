@@ -47,3 +47,22 @@ Thumbs.db
 *.iml
 *.ipr
 *.iws
+
+# Variáveis de ambiente e segredos
+.env
+.env.*
+*.env
+secrets.json
+
+# Bancos de dados locais
+*.db
+*.sqlite
+*.sqlite3
+
+# Sessões do Telegram (Telethon / Pyrogram)
+*.session
+*.session-journal
+
+# Logs e uploads temporários
+*.log
+uploads/
