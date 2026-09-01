@@ -10,7 +10,6 @@ import 'lucro_chart.dart';
 import 'lucro_por_dia_list.dart';
 import 'resumo_casas_list.dart';
 import 'seletor_periodo.dart';
-import 'cartao_unidade.dart';
 
 class ResumoHeader extends StatefulWidget {
   final ResumoStats resumo;
@@ -76,12 +75,18 @@ class _ResumoHeaderState extends State<ResumoHeader> {
 
   ResumoCalculado get _resumoFiltrado => calcularResumoLocal(_apostasFiltradas);
 
+  List<ResumoPorCasa> get _resumoPorCasaFiltrado => calcularResumoPorCasaLocal(_apostasFiltradas);
+
   @override
   Widget build(BuildContext context) {
     final formatoMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     final resumoPeriodo = _resumoFiltrado;
     final corLucroPeriodo = resumoPeriodo.lucroTotal >= 0 ? AppColors.green : AppColors.red;
     final eTudo = !_periodo.ehPersonalizado && _periodo.preset == PeriodoFiltro.tudo;
+    // banca "exibida" acompanha o período: banca inicial + lucro só do
+    // período escolhido (quando o período é "Tudo", isso já bate com o
+    // valor de sempre, banca_inicial + lucro_total).
+    final bancaExibida = widget.resumo.bancaInicial + resumoPeriodo.lucroTotal;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
@@ -92,7 +97,6 @@ class _ResumoHeaderState extends State<ResumoHeader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CartaoUnidade(),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -103,7 +107,7 @@ class _ResumoHeaderState extends State<ResumoHeader> {
                     const Text('Banca atual', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13)),
                     const SizedBox(height: 4),
                     Text(
-                      formatoMoeda.format(widget.resumo.bancaAtual),
+                      formatoMoeda.format(bancaExibida),
                       style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                     ),
                   ],
@@ -164,7 +168,7 @@ class _ResumoHeaderState extends State<ResumoHeader> {
           const SizedBox(height: 18),
           const Text('Resumo por casa', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          ResumoCasasList(casas: widget.resumoPorCasa),
+          ResumoCasasList(casas: _resumoPorCasaFiltrado),
         ],
       ),
     );
