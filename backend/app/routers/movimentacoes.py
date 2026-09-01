@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-import crud, models, schemas
+from .. import crud, models, schemas
 from ..database import get_db
 from ..deps import obter_usuario_atual
 
