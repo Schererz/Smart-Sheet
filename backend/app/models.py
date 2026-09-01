@@ -58,15 +58,22 @@ class Usuario(Base):
 
 
 class Configuracao(Base):
-    """Uma linha por usuário, com ajustes gerais do app. Hoje só guarda
-    a banca inicial, que o usuário informa na primeira vez que abre o app —
-    é a base pra calcular a evolução da banca ao longo do tempo."""
+    """Uma linha por usuário, com ajustes gerais do app. Guarda a banca
+    inicial (definida na primeira vez que abre o app), a unidade de
+    apostas (recalculada periodicamente com base na banca atual), e o
+    modo mensal (visão "zerada" por ciclo, opcional)."""
     __tablename__ = "configuracao"
 
     id = Column(Integer, primary_key=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), unique=True, nullable=False, index=True)
     banca_inicial = Column(Float, default=0.0, nullable=False)
     definida = Column(Boolean, default=False, nullable=False)  # já foi configurada pelo usuário?
+
+    unidade_atual = Column(Float, nullable=True)
+    data_ultimo_recalculo_unidade = Column(Date, nullable=True)
+    intervalo_recalculo_dias = Column(Integer, default=7, nullable=False)  # 7 = semanal, 30 = mensal
+
+    modo_mensal_ativado = Column(Boolean, default=False, nullable=False)
 
 
 class Casa(Base):
@@ -172,3 +179,19 @@ def calcular_retorno_com_aumento(valor_apostado: float, odd: float, aumento_perc
     lucro_normal = valor_apostado * (odd - 1)
     lucro_aumentado = lucro_normal * (1 + aumento_percentual / 100)
     return round(valor_apostado + lucro_aumentado, 2)
+
+
+class CicloMensal(Base):
+    """Um período (normalmente um mês) quando o modo mensal está ativado.
+    Guarda a banca REAL acumulada no momento em que o ciclo começou —
+    é o que permite mostrar "banca zerada" (só o que rolou nesse ciclo)
+    sem perder o histórico de verdade."""
+    __tablename__ = "ciclos_mensais"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    nome = Column(String(50), nullable=False)
+    data_inicio = Column(Date, nullable=False)
+    data_fim = Column(Date, nullable=True)  # None = é o ciclo ATUAL, ainda em andamento
+    banca_inicial_ciclo = Column(Float, nullable=False)
+    criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)

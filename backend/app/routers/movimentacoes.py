@@ -51,3 +51,20 @@ def banca_por_localizacao(
     usuario: models.Usuario = Depends(obter_usuario_atual),
 ):
     return crud.calcular_banca_por_localizacao(db, usuario.id)
+
+
+@router.post("/sugestao-deposito", response_model=schemas.SugestaoDepositoResponse)
+def sugestao_deposito(
+    dados: schemas.SugestaoDepositoRequest,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
+    return crud.calcular_sugestao_deposito(
+        db,
+        usuario.id,
+        dados.banca_total_mes,
+        dados.dias_periodo,
+        dados.fator_retencao,
+        dados.valor_minimo,
+        dados.valor_maximo,
+    )

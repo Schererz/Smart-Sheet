@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import models
 from .database import engine
-from .routers import auth, bets, casas, configuracao, importacao, movimentacoes, ocr_web, parsing, telegram
-
-# E adicionar essa linha junto dos outros app.include_router(...):
+from .routers import auth, bets, casas, ciclos, configuracao, importacao, movimentacoes, ocr_web, parsing, telegram
 
 # cria as tabelas no banco (se ainda não existirem) toda vez que sobe a API
 models.Base.metadata.create_all(bind=engine)
@@ -35,6 +33,7 @@ app.include_router(ocr_web.router)
 app.include_router(parsing.router)
 app.include_router(telegram.router)
 app.include_router(movimentacoes.router)
+app.include_router(ciclos.router)
 
 
 @app.get("/")

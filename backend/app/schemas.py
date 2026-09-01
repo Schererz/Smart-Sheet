@@ -214,3 +214,78 @@ class ResumoStats(BaseModel):
     maior_lucro: float | None
     maior_prejuizo: float | None
     apostas_em_aberto: int
+
+
+# ---------------- Unidade ----------------
+
+class StatusUnidade(BaseModel):
+    unidade_atual: float | None
+    data_ultimo_recalculo: date | None
+    intervalo_dias: int
+    proxima_data_recalculo: date | None
+    recalculo_pendente: bool
+    unidade_se_recalcular_agora: float
+
+
+class IntervaloUnidadeUpdate(BaseModel):
+    intervalo_dias: int  # 7 = semanal, 30 = mensal
+
+
+# ---------------- Sugestão de depósito ----------------
+
+class SugestaoDepositoRequest(BaseModel):
+    banca_total_mes: float
+    dias_periodo: int = 30        # período de onde vem o lucro considerado (padrão: mês passado)
+    fator_retencao: float = 0.7   # quanto da participação no lucro vira % de depósito (0.7 = 70%)
+    valor_minimo: float = 50
+    valor_maximo: float = 300
+
+
+class ItemSugestaoDeposito(BaseModel):
+    casa: str
+    lucro_periodo: float
+    participacao_pct: float  # % que essa casa teve do lucro total positivo do período
+    sugerido: float
+
+
+class SugestaoDepositoResponse(BaseModel):
+    sugestoes: list[ItemSugestaoDeposito]
+    banco_sugerido: float
+    nova_unidade_sugerida: float
+    banca_insuficiente_para_minimos: bool  # caso extremo: nem o mínimo coube em todas as casas
+
+
+# ---------------- Ciclos mensais ----------------
+
+class CicloMensalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+    data_inicio: date
+    data_fim: date | None
+    banca_inicial_ciclo: float
+
+
+class ResumoPorCasaCiclo(BaseModel):
+    casa: str
+    total_apostas: int
+    lucro_total: float
+    taxa_acerto: float | None
+
+
+class DashboardCiclo(BaseModel):
+    ciclo: CicloMensalOut
+    banca_atual_ciclo: float
+    lucro_ciclo: float
+    total_apostas_ciclo: int
+    evolucao: list[dict]  # [{"data": date, "banca": float}, ...]
+    resumo_por_casa: list[ResumoPorCasaCiclo]
+
+
+class ModoMensalUpdate(BaseModel):
+    ativado: bool
+
+
+class IniciarCicloRequest(BaseModel):
+    nome: str | None = None  # se não vier, gera automático tipo "Agosto 2026"

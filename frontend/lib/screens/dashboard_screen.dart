@@ -10,6 +10,8 @@ import '../widgets/resumo_header.dart';
 import 'importar_planilha_screen.dart';
 import 'login_screen.dart';
 import 'movimentacoes_screen.dart';
+import 'sugestao_deposito_screen.dart';
+import 'modo_mensal_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   final ResumoStats resumo;
@@ -139,6 +141,12 @@ class DashboardScreen extends StatelessWidget {
               if (valor == 'movimentacoes') {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const MovimentacoesScreen())).then((_) => onRefresh());
                 }
+              if (valor == 'sugestao_deposito') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SugestaoDepositoScreen())).then((_) => onRefresh());
+              }
+              if (valor == 'modo_mensal') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ModoMensalScreen())).then((_) => onRefresh());
+              }
             },
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -150,6 +158,8 @@ class DashboardScreen extends StatelessWidget {
               ),
               const PopupMenuItem(value: 'telegram', child: Text('Conectar Telegram')),
               const PopupMenuItem(value: 'movimentacoes', child: Text('Saques e depósitos')),
+              const PopupMenuItem(value: 'sugestao_deposito', child: Text('Sugestão de depósito')),
+              const PopupMenuItem(value: 'modo_mensal', child: Text('Modo mensal')),
               const PopupMenuItem(
                 value: 'apagar_tudo',
                 child: Text('Apagar todas as apostas', style: TextStyle(color: AppColors.red)),

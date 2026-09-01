@@ -10,6 +10,7 @@ import 'lucro_chart.dart';
 import 'lucro_por_dia_list.dart';
 import 'resumo_casas_list.dart';
 import 'seletor_periodo.dart';
+import 'cartao_unidade.dart';
 
 class ResumoHeader extends StatefulWidget {
   final ResumoStats resumo;
@@ -91,6 +92,7 @@ class _ResumoHeaderState extends State<ResumoHeader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const CartaoUnidade(),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

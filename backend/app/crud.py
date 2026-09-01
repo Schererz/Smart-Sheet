@@ -489,3 +489,267 @@ def calcular_banca_por_localizacao(db: Session, usuario_id: int) -> dict:
         "total": round(banca_atual_global, 2),
     }
 
+
+# ---------------- Unidade ----------------
+
+def _calcular_unidade(banca: float) -> float:
+    return round(banca / 100, 2)
+
+
+def obter_status_unidade(db: Session, usuario_id: int) -> dict:
+    config = obter_configuracao(db, usuario_id)
+    resumo = calcular_resumo(db, usuario_id)
+    banca_atual = resumo["banca_atual"]
+
+    proxima_data = None
+    pendente = False
+    if config.data_ultimo_recalculo_unidade is not None:
+        proxima_data = config.data_ultimo_recalculo_unidade + timedelta(days=config.intervalo_recalculo_dias)
+        pendente = date.today() >= proxima_data
+    else:
+        pendente = True  # nunca foi calculada ainda
+
+    return {
+        "unidade_atual": config.unidade_atual,
+        "data_ultimo_recalculo": config.data_ultimo_recalculo_unidade,
+        "intervalo_dias": config.intervalo_recalculo_dias,
+        "proxima_data_recalculo": proxima_data,
+        "recalculo_pendente": pendente,
+        "unidade_se_recalcular_agora": _calcular_unidade(banca_atual),
+    }
+
+
+def recalcular_unidade(db: Session, usuario_id: int) -> dict:
+    config = obter_configuracao(db, usuario_id)
+    resumo = calcular_resumo(db, usuario_id)
+    config.unidade_atual = _calcular_unidade(resumo["banca_atual"])
+    config.data_ultimo_recalculo_unidade = date.today()
+    db.commit()
+    return obter_status_unidade(db, usuario_id)
+
+
+def definir_intervalo_unidade(db: Session, usuario_id: int, dias: int) -> dict:
+    config = obter_configuracao(db, usuario_id)
+    config.intervalo_recalculo_dias = dias
+    db.commit()
+    return obter_status_unidade(db, usuario_id)
+
+
+# ---------------- Sugestão de depósito ----------------
+
+def _arredondar_50(valor: float) -> float:
+    return round(valor / 50) * 50
+
+
+def _arredondar_10_baixo(valor: float) -> float:
+    import math
+    return math.floor(valor / 10) * 10
+
+
+def calcular_sugestao_deposito(
+    db: Session,
+    usuario_id: int,
+    banca_total_mes: float,
+    dias_periodo: int = 30,
+    fator_retencao: float = 0.7,
+    valor_minimo: float = 50,
+    valor_maximo: float = 300,
+) -> dict:
+    """Reproduz o método que o usuário já usava manualmente na planilha:
+    cada casa recebe uma fatia da banca do próximo período PROPORCIONAL
+    à participação dela no lucro total (só contam as casas que deram
+    lucro positivo) — multiplicada por um fator de retenção (ex: 70%),
+    porque a ideia é depositar um pouco MENOS que a participação de
+    lucro, deixando uma folga guardada como reserva. Casas que
+    participaram mas não lucraram recebem só o mínimo. Tudo é limitado
+    entre um piso e um teto (nenhuma casa fica muito subfinanciada nem
+    concentra demais)."""
+    data_corte = date.today() - timedelta(days=dias_periodo)
+
+    apostas = (
+        db.query(models.Bet)
+        .filter(models.Bet.usuario_id == usuario_id, models.Bet.data >= data_corte)
+        .all()
+    )
+
+    lucro_por_casa: dict[str, float] = {}
+    for aposta in apostas:
+        lucro_por_casa[aposta.casa_de_apostas] = lucro_por_casa.get(aposta.casa_de_apostas, 0.0) + (aposta.lucro or 0.0)
+
+    casas_com_atividade = list(lucro_por_casa.keys())
+    if not casas_com_atividade:
+        return {
+            "sugestoes": [],
+            "banco_sugerido": round(banca_total_mes, 2),
+            "nova_unidade_sugerida": _calcular_unidade(banca_total_mes),
+            "banca_insuficiente_para_minimos": False,
+        }
+
+    lucro_total_positivo = sum(l for l in lucro_por_casa.values() if l > 0)
+
+    brutos: dict[str, float] = {}
+    participacoes: dict[str, float] = {}
+    for casa in casas_com_atividade:
+        lucro = lucro_por_casa[casa]
+        if lucro > 0 and lucro_total_positivo > 0:
+            participacao = lucro / lucro_total_positivo
+            bruto = banca_total_mes * participacao * fator_retencao
+        else:
+            participacao = 0.0
+            bruto = valor_minimo
+        participacoes[casa] = round(participacao * 100, 1)
+        brutos[casa] = max(valor_minimo, min(valor_maximo, _arredondar_50(bruto)))
+
+    soma = sum(brutos.values())
+    banca_insuficiente = False
+    if soma > banca_total_mes:
+        fator = banca_total_mes / soma
+        # na redução de emergência, arredonda mais fino (10 em vez de 50)
+        # e pra baixo — nesse cenário extremo pode não dar pra garantir
+        # o mínimo pra todo mundo, e isso fica sinalizado na resposta
+        brutos = {c: max(0.0, _arredondar_10_baixo(v * fator)) for c, v in brutos.items()}
+        banca_insuficiente = True
+
+    banco_sugerido = round(banca_total_mes - sum(brutos.values()), 2)
+
+    itens = [
+        {
+            "casa": casa,
+            "lucro_periodo": round(lucro_por_casa[casa], 2),
+            "participacao_pct": participacoes[casa],
+            "sugerido": brutos[casa],
+        }
+        for casa in sorted(brutos, key=lambda c: brutos[c], reverse=True)
+    ]
+
+    return {
+        "sugestoes": itens,
+        "banco_sugerido": banco_sugerido,
+        "nova_unidade_sugerida": _calcular_unidade(banca_total_mes),
+        "banca_insuficiente_para_minimos": banca_insuficiente,
+    }
+
+
+# ---------------- Ciclos mensais ----------------
+
+MESES_PT = {
+    1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril", 5: "Maio", 6: "Junho",
+    7: "Julho", 8: "Agosto", 9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro",
+}
+
+
+def obter_modo_mensal(db: Session, usuario_id: int) -> bool:
+    config = obter_configuracao(db, usuario_id)
+    return config.modo_mensal_ativado
+
+
+def definir_modo_mensal(db: Session, usuario_id: int, ativado: bool) -> bool:
+    config = obter_configuracao(db, usuario_id)
+    config.modo_mensal_ativado = ativado
+    db.commit()
+    return ativado
+
+
+def obter_ciclo_atual(db: Session, usuario_id: int) -> models.CicloMensal | None:
+    return (
+        db.query(models.CicloMensal)
+        .filter(models.CicloMensal.usuario_id == usuario_id, models.CicloMensal.data_fim.is_(None))
+        .first()
+    )
+
+
+def listar_ciclos(db: Session, usuario_id: int) -> list[models.CicloMensal]:
+    return (
+        db.query(models.CicloMensal)
+        .filter(models.CicloMensal.usuario_id == usuario_id)
+        .order_by(models.CicloMensal.data_inicio.desc())
+        .all()
+    )
+
+
+def iniciar_novo_ciclo(db: Session, usuario_id: int, nome: str | None = None) -> models.CicloMensal:
+    """Fecha o ciclo atual (se existir) e abre um novo, capturando a
+    banca REAL acumulada nesse exato momento como ponto de partida."""
+    hoje = date.today()
+
+    ciclo_atual = obter_ciclo_atual(db, usuario_id)
+    if ciclo_atual:
+        ciclo_atual.data_fim = hoje - timedelta(days=1) if hoje > ciclo_atual.data_inicio else hoje
+
+    resumo = calcular_resumo(db, usuario_id)
+    banca_agora = resumo["banca_atual"]
+
+    nome_final = nome or f"{MESES_PT[hoje.month]} {hoje.year}"
+
+    novo_ciclo = models.CicloMensal(
+        usuario_id=usuario_id,
+        nome=nome_final,
+        data_inicio=hoje,
+        data_fim=None,
+        banca_inicial_ciclo=banca_agora,
+    )
+    db.add(novo_ciclo)
+    db.commit()
+    db.refresh(novo_ciclo)
+    return novo_ciclo
+
+
+def calcular_dashboard_ciclo(db: Session, usuario_id: int, ciclo_id: int) -> dict | None:
+    ciclo = (
+        db.query(models.CicloMensal)
+        .filter(models.CicloMensal.id == ciclo_id, models.CicloMensal.usuario_id == usuario_id)
+        .first()
+    )
+    if not ciclo:
+        return None
+
+    query = db.query(models.Bet).filter(
+        models.Bet.usuario_id == usuario_id, models.Bet.data >= ciclo.data_inicio
+    )
+    if ciclo.data_fim is not None:
+        query = query.filter(models.Bet.data <= ciclo.data_fim)
+    apostas_ciclo = query.order_by(models.Bet.data).all()
+
+    lucro_ciclo = sum(a.lucro or 0.0 for a in apostas_ciclo)
+    banca_atual_ciclo = ciclo.banca_inicial_ciclo + lucro_ciclo
+
+    por_dia: dict[date, float] = {}
+    for a in apostas_ciclo:
+        por_dia[a.data] = por_dia.get(a.data, 0.0) + (a.lucro or 0.0)
+
+    evolucao = [{"data": ciclo.data_inicio, "banca": round(ciclo.banca_inicial_ciclo, 2)}]
+    acumulado = ciclo.banca_inicial_ciclo
+    for dia in sorted(por_dia):
+        acumulado += por_dia[dia]
+        evolucao.append({"data": dia, "banca": round(acumulado, 2)})
+
+    por_casa: dict[str, dict] = {}
+    for a in apostas_ciclo:
+        c = por_casa.setdefault(a.casa_de_apostas, {"total_apostas": 0, "lucro_total": 0.0, "green": 0, "resolvidas": 0})
+        c["total_apostas"] += 1
+        c["lucro_total"] += a.lucro or 0.0
+        if a.resultado in (models.ResultadoAposta.green, models.ResultadoAposta.red):
+            c["resolvidas"] += 1
+            if a.resultado == models.ResultadoAposta.green:
+                c["green"] += 1
+
+    resumo_por_casa = [
+        {
+            "casa": casa,
+            "total_apostas": dados["total_apostas"],
+            "lucro_total": round(dados["lucro_total"], 2),
+            "taxa_acerto": round(100 * dados["green"] / dados["resolvidas"], 1) if dados["resolvidas"] else None,
+        }
+        for casa, dados in por_casa.items()
+    ]
+    resumo_por_casa.sort(key=lambda c: c["lucro_total"], reverse=True)
+
+    return {
+        "ciclo": ciclo,
+        "banca_atual_ciclo": round(banca_atual_ciclo, 2),
+        "lucro_ciclo": round(lucro_ciclo, 2),
+        "total_apostas_ciclo": len(apostas_ciclo),
+        "evolucao": evolucao,
+        "resumo_por_casa": resumo_por_casa,
+    }
+

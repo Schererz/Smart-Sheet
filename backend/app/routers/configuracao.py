@@ -20,3 +20,22 @@ def atualizar_configuracao(
     usuario: models.Usuario = Depends(obter_usuario_atual),
 ):
     return crud.atualizar_banca_inicial(db, usuario.id, dados.banca_inicial)
+
+
+@router.get("/unidade", response_model=schemas.StatusUnidade)
+def status_unidade(db: Session = Depends(get_db), usuario: models.Usuario = Depends(obter_usuario_atual)):
+    return crud.obter_status_unidade(db, usuario.id)
+
+
+@router.post("/unidade/recalcular", response_model=schemas.StatusUnidade)
+def recalcular_unidade(db: Session = Depends(get_db), usuario: models.Usuario = Depends(obter_usuario_atual)):
+    return crud.recalcular_unidade(db, usuario.id)
+
+
+@router.put("/unidade/intervalo", response_model=schemas.StatusUnidade)
+def definir_intervalo_unidade(
+    dados: schemas.IntervaloUnidadeUpdate,
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
+    return crud.definir_intervalo_unidade(db, usuario.id, dados.intervalo_dias)

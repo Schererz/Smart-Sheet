@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart' show XFile;
 import '../models/movimentacao.dart';
+import '../models/unidade.dart';
+import '../models/ciclo.dart';
 
 import '../models/aposta.dart';
 import '../models/casa.dart';
@@ -328,5 +330,90 @@ class ApiService {
     final resposta = await http.get(_uri('/movimentacoes/banca-por-localizacao'), headers: _headers());
     _verificarErro(resposta);
     return BancaPorLocalizacao.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
+  }
+
+  // ---------------- Unidade ----------------
+
+  Future<StatusUnidade> obterStatusUnidade() async {
+    final resposta = await http.get(_uri('/configuracao/unidade'), headers: _headers());
+    _verificarErro(resposta);
+    return StatusUnidade.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
+  }
+
+  Future<StatusUnidade> recalcularUnidade() async {
+    final resposta = await http.post(_uri('/configuracao/unidade/recalcular'), headers: _headers());
+    _verificarErro(resposta);
+    return StatusUnidade.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
+  }
+
+  Future<StatusUnidade> definirIntervaloUnidade(int dias) async {
+    final resposta = await http.put(
+      _uri('/configuracao/unidade/intervalo'),
+      headers: _headers(json: true),
+      body: jsonEncode({'intervalo_dias': dias}),
+    );
+    _verificarErro(resposta);
+    return StatusUnidade.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
+  }
+
+  // ---------------- Sugestão de depósito ----------------
+
+  Future<SugestaoDeposito> obterSugestaoDeposito({required double bancaTotalMes, int diasPeriodo = 30}) async {
+    final resposta = await http.post(
+      _uri('/movimentacoes/sugestao-deposito'),
+      headers: _headers(json: true),
+      body: jsonEncode({'banca_total_mes': bancaTotalMes, 'dias_periodo': diasPeriodo}),
+    );
+    _verificarErro(resposta);
+    return SugestaoDeposito.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
+  }
+
+  // ---------------- Ciclos mensais ----------------
+
+  Future<bool> obterModoMensal() async {
+    final resposta = await http.get(_uri('/ciclos/modo-mensal'), headers: _headers());
+    _verificarErro(resposta);
+    return (jsonDecode(utf8.decode(resposta.bodyBytes)) as Map)['ativado'] as bool;
+  }
+
+  Future<bool> definirModoMensal(bool ativado) async {
+    final resposta = await http.put(
+      _uri('/ciclos/modo-mensal'),
+      headers: _headers(json: true),
+      body: jsonEncode({'ativado': ativado}),
+    );
+    _verificarErro(resposta);
+    return (jsonDecode(utf8.decode(resposta.bodyBytes)) as Map)['ativado'] as bool;
+  }
+
+  Future<CicloMensal?> obterCicloAtual() async {
+    final resposta = await http.get(_uri('/ciclos/atual'), headers: _headers());
+    _verificarErro(resposta);
+    final corpo = utf8.decode(resposta.bodyBytes);
+    if (corpo == 'null') return null;
+    return CicloMensal.fromJson(jsonDecode(corpo));
+  }
+
+  Future<CicloMensal> iniciarCiclo({String? nome}) async {
+    final resposta = await http.post(
+      _uri('/ciclos/iniciar'),
+      headers: _headers(json: true),
+      body: jsonEncode({'nome': nome}),
+    );
+    _verificarErro(resposta);
+    return CicloMensal.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
+  }
+
+  Future<List<CicloMensal>> listarCiclos() async {
+    final resposta = await http.get(_uri('/ciclos/'), headers: _headers());
+    _verificarErro(resposta);
+    final lista = jsonDecode(utf8.decode(resposta.bodyBytes)) as List;
+    return lista.map((j) => CicloMensal.fromJson(j)).toList();
+  }
+
+  Future<DashboardCiclo> obterDashboardCiclo(int cicloId) async {
+    final resposta = await http.get(_uri('/ciclos/$cicloId/dashboard'), headers: _headers());
+    _verificarErro(resposta);
+    return DashboardCiclo.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
   }
 }
