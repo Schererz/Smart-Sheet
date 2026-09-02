@@ -128,6 +128,8 @@ class Bet(Base):
     resultado = Column(Enum(ResultadoAposta), default=ResultadoAposta.aberto, nullable=False)
     lucro = Column(Float, nullable=True)  # calculado a partir do resultado
 
+    tipster = Column(String(50), nullable=True)  # de qual grupo/pessoa veio a indicação (ex: "Girino", "Props")
+
     origem = Column(Enum(OrigemRegistro), default=OrigemRegistro.manual, nullable=False)
     # Os dois campos abaixo só existem quando origem = ocr. Juntos formam o
     # par (entrada, saída correta) que vira exemplo de treino: os blocos

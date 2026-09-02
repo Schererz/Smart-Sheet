@@ -9,6 +9,7 @@ import 'evolucao_banca_chart.dart';
 import 'lucro_chart.dart';
 import 'lucro_por_dia_list.dart';
 import 'resumo_casas_list.dart';
+import 'resumo_tipsters_list.dart';
 import 'seletor_periodo.dart';
 
 class ResumoHeader extends StatefulWidget {
@@ -76,6 +77,8 @@ class _ResumoHeaderState extends State<ResumoHeader> {
   ResumoCalculado get _resumoFiltrado => calcularResumoLocal(_apostasFiltradas);
 
   List<ResumoPorCasa> get _resumoPorCasaFiltrado => calcularResumoPorCasaLocal(_apostasFiltradas);
+
+  List<ResumoPorTipster> get _resumoPorTipsterFiltrado => calcularResumoPorTipsterLocal(_apostasFiltradas);
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +164,12 @@ class _ResumoHeaderState extends State<ResumoHeader> {
               _Estatistica(rotulo: 'Em aberto', valor: '${resumoPeriodo.apostasEmAberto}'),
             ],
           ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _Estatistica(rotulo: 'Total investido', valor: formatoMoeda.format(resumoPeriodo.totalApostado)),
+            ],
+          ),
           const SizedBox(height: 22),
           const Text('Lucro por dia', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
@@ -169,6 +178,10 @@ class _ResumoHeaderState extends State<ResumoHeader> {
           const Text('Resumo por casa', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           ResumoCasasList(casas: _resumoPorCasaFiltrado),
+          const SizedBox(height: 18),
+          const Text('Resumo por tipster', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          ResumoTipstersList(tipsters: _resumoPorTipsterFiltrado),
         ],
       ),
     );

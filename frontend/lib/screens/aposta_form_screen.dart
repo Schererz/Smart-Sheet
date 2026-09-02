@@ -35,6 +35,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
   final _api = ApiService();
 
   late final TextEditingController _descricao;
+  late final TextEditingController _tipster;
   late final TextEditingController _odd;
   late final TextEditingController _valorApostado;
   late final TextEditingController _retornoPotencial;
@@ -54,6 +55,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
     final a = widget.apostaExistente;
 
     _descricao = TextEditingController(text: a?.descricao ?? r?.descricao ?? '');
+    _tipster = TextEditingController(text: a?.tipster ?? '');
     _odd = TextEditingController(text: (a?.odd ?? r?.odd)?.toStringAsFixed(2) ?? '');
     _valorApostado = TextEditingController(text: (a?.valorApostado ?? r?.valorApostado)?.toStringAsFixed(2) ?? '');
     _retornoPotencial = TextEditingController(
@@ -88,6 +90,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
   @override
   void dispose() {
     _descricao.dispose();
+    _tipster.dispose();
     _odd.dispose();
     _valorApostado.dispose();
     _retornoPotencial.dispose();
@@ -176,6 +179,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
           'retorno_potencial': _paraDouble(_retornoPotencial.text),
           'aumento_percentual': _turbinada ? _aumentoPercentual : null,
           'resultado': _resultado.name,
+          'tipster': _tipster.text.trim().isEmpty ? null : _tipster.text.trim(),
         });
       } else {
         final aposta = Aposta(
@@ -188,6 +192,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
           aumentoPercentual: _turbinada ? _aumentoPercentual : null,
           resultado: _resultado,
           origem: widget.origem,
+          tipster: _tipster.text.trim().isEmpty ? null : _tipster.text.trim(),
         );
         await _api.criarAposta(aposta, blocosOcr: widget.blocosOcr, sugestaoOriginal: widget.rascunho);
       }
@@ -360,6 +365,12 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
             TextFormField(
               controller: _descricao,
               decoration: const InputDecoration(hintText: 'Ex: Flamengo x Palmeiras - Over 2.5'),
+            ),
+            const SizedBox(height: 16),
+            _RotuloCampo('Tipster (opcional)'),
+            TextFormField(
+              controller: _tipster,
+              decoration: const InputDecoration(hintText: 'Ex: Girino, Props'),
             ),
             const SizedBox(height: 16),
             Row(

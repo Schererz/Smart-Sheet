@@ -1,12 +1,12 @@
 """
 Parsing das mensagens de apostas recebidas via Telegram.
 
-Suporta DOIS formatos, que podem inclusive vir colados na mesma
-mensagem (cada linha é processada independente, então não importa de
-qual "bloco" ela veio):
+Suporta TRÊS formas de saber o valor a apostar, que podem inclusive vir
+coladas na mesma mensagem (cada linha é processada independente, então
+não importa de qual "bloco" ela veio):
 
-1) Formato do grupo original — uma linha por campo, cada uma com um
-   emoji fixo no início:
+1) Percentual da banca (tipster "Girino", o formato padrão/original) —
+   uma linha por campo, cada uma com um emoji fixo no início:
 
     🏠 Esportiva Bet
     🆚 Mirassol x LDU
@@ -18,20 +18,29 @@ qual "bloco" ela veio):
    Aqui o VALOR é calculado (banca × percentual), respeitando o limite
    se a mensagem trouxer um.
 
-2) Formato de bots relay tipo "Shark Track" — já vem com o valor e o
-   retorno PRONTOS (calculados com a banca de quem configurou lá):
+2) Valor pronto (bots relay tipo "Shark Track") — já vem com o valor e
+   o retorno CALCULADOS (usando a banca de quem configurou lá):
 
-    🆚 Jaime Faria x Jenson Brooksby
-    🏆 US Open, New York, USA
-    🏠 bet365
     🏷️ Odd: 2.38
     💵 Valor: R$ 12,30
     🤑 Retorno: R$ 29,21
 
-   Aqui o valor/retorno vêm DIRETO da mensagem, sem precisar calcular.
+3) Unidades (tipster "Props") — o valor vem em "u" (unidade), não em %
+   nem em R$ direto. 1 unidade = R$5 fixo, não depende da banca:
+
+    🏷️ 5.20
+    💰 3u
+
+Sempre que a mensagem tiver unidades, o tipster vira "Props"
+automaticamente — em qualquer outro caso, o tipster padrão é "Girino"
+(único usuário desse bot por enquanto, então não precisa perguntar).
 """
 import re
 from dataclasses import dataclass
+
+VALOR_POR_UNIDADE = 5.0  # 1u = R$5, fixo — não depende da banca
+TIPSTER_PADRAO = "Girino"
+TIPSTER_UNIDADES = "Props"
 
 
 @dataclass
@@ -39,12 +48,13 @@ class ApostaTelegram:
     casa: str | None = None
     confronto: str | None = None
     mercado: str | None = None
-    competicao: str | None = None  # ex: "US Open, New York, USA" — formato Shark Track
+    competicao: str | None = None  # ex: "US Open, New York, USA"
     odd: float | None = None
     percentual: float | None = None
     limite: float | None = None
     valor_direto: float | None = None  # quando a mensagem já traz o valor calculado (ex: Shark Track)
     retorno_direto: float | None = None
+    unidades: float | None = None  # formato "3u" — tipster Props
 
     @property
     def descricao(self) -> str | None:
@@ -52,12 +62,15 @@ class ApostaTelegram:
         return " - ".join(partes) if partes else None
 
     @property
+    def tipster(self) -> str:
+        return TIPSTER_UNIDADES if self.unidades is not None else TIPSTER_PADRAO
+
+    @property
     def completa(self) -> bool:
         """Tem o mínimo pra virar uma aposta de verdade — precisa de casa,
-        odd, e ALGUMA forma de saber o valor (percentual da banca OU um
-        valor já calculado, tipo quando vem de outro bot que já faz essa
-        conta usando a sua própria banca)."""
-        tem_valor = self.percentual is not None or self.valor_direto is not None
+        odd, e ALGUMA forma de saber o valor (percentual da banca, um
+        valor já calculado, ou unidades)."""
+        tem_valor = self.percentual is not None or self.valor_direto is not None or self.unidades is not None
         return bool(self.casa and self.odd and tem_valor)
 
     def campos_faltando(self) -> list[str]:
@@ -66,8 +79,8 @@ class ApostaTelegram:
             faltando.append("casa (🏠)")
         if self.odd is None:
             faltando.append("odd (🏷️)")
-        if self.percentual is None and self.valor_direto is None:
-            faltando.append("percentual da banca (linha com '%') ou valor da aposta (💵)")
+        if self.percentual is None and self.valor_direto is None and self.unidades is None:
+            faltando.append("percentual da banca (%), unidades (u), ou valor da aposta (💵)")
         return faltando
 
 
@@ -102,6 +115,13 @@ def parsear_mensagem(texto: str) -> ApostaTelegram:
             m = re.search(r'(\d+[.,]\d+)', linha)
             if m:
                 aposta.valor_direto = _num(m.group(1))
+        elif linha.startswith("💰"):
+            # o 💰 tem dois significados possíveis: "3u" (unidades, tipster
+            # Props) ou "R$X,XX" (só informativo no formato Girino — o
+            # valor de verdade vem do percentual, esse aqui é ignorado).
+            m_unidades = re.search(r'(\d+(?:[.,]\d+)?)\s*u\b', linha, re.IGNORECASE)
+            if m_unidades:
+                aposta.unidades = _num(m_unidades.group(1))
         elif linha.startswith("🤑"):
             m = re.search(r'(\d+[.,]\d+)', linha)
             if m:
@@ -129,6 +149,15 @@ def calcular_valor_apostado(percentual: float, banca_inicial: float, limite: flo
     """Calcula quanto apostar com base no percentual da banca — e, se a
     mensagem trouxer um limite máximo por aposta, nunca ultrapassa ele."""
     valor = round(banca_inicial * percentual / 100, 2)
+    if limite is not None:
+        valor = min(valor, limite)
+    return valor
+
+
+def calcular_valor_por_unidades(unidades: float, limite: float | None = None) -> float:
+    """1 unidade = R$5, valor fixo — não depende da banca. Ainda assim
+    respeita um limite máximo, se a mensagem trouxer um."""
+    valor = round(unidades * VALOR_POR_UNIDADE, 2)
     if limite is not None:
         valor = min(valor, limite)
     return valor

@@ -23,6 +23,7 @@ class Aposta {
   final ResultadoAposta resultado;
   final double? lucro;
   final String origem;
+  final String? tipster;
 
   Aposta({
     this.id,
@@ -36,6 +37,7 @@ class Aposta {
     this.resultado = ResultadoAposta.aberto,
     this.lucro,
     this.origem = 'manual',
+    this.tipster,
   });
 
   factory Aposta.fromJson(Map<String, dynamic> json) {
@@ -51,6 +53,7 @@ class Aposta {
       resultado: resultadoFromString(json['resultado'] as String),
       lucro: (json['lucro'] as num?)?.toDouble(),
       origem: json['origem'] as String? ?? 'manual',
+      tipster: json['tipster'] as String?,
     );
   }
 
@@ -69,6 +72,7 @@ class Aposta {
       'aumento_percentual': aumentoPercentual,
       'resultado': resultado.name,
       'origem': origem,
+      'tipster': tipster,
       if (blocosOcr != null) 'blocos_ocr': blocosOcr.map((b) => b.toJson()).toList(),
       if (sugestaoOriginal != null) 'sugestao_original': sugestaoOriginal.toJson(),
     };

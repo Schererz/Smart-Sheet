@@ -29,7 +29,7 @@ from ..database import get_db
 from ..deps import obter_usuario_atual
 from ..telegram_client import baixar_arquivo, enviar_mensagem
 from ..telegram_ocr import ler_texto_da_imagem
-from ..telegram_parsing import calcular_valor_apostado, parsear_mensagem
+from ..telegram_parsing import calcular_valor_apostado, calcular_valor_por_unidades, parsear_mensagem
 
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
@@ -139,7 +139,16 @@ async def _processar_aposta(db: Session, usuario: models.Usuario, chat_id, texto
         await enviar_mensagem(chat_id, f"Não consegui entender essa mensagem — faltou: {faltando}.")
         return
 
-    if aposta.valor_direto is not None:
+    if aposta.unidades is not None:
+        # tipster Props: valor fixo por unidade (1u = R$5), não depende
+        # da banca — mas ainda respeita o limite, se a mensagem trouxer um
+        valor = calcular_valor_por_unidades(aposta.unidades, aposta.limite)
+        retorno = aposta.retorno_direto if aposta.retorno_direto is not None else round(valor * aposta.odd, 2)
+        aviso_limite = ""
+        valor_sem_limite = round(aposta.unidades * 5.0, 2)
+        if aposta.limite is not None and valor_sem_limite > aposta.limite:
+            aviso_limite = f" (seria R$ {valor_sem_limite:.2f}, mas o limite da aposta é R$ {aposta.limite:.2f})"
+    elif aposta.valor_direto is not None:
         # a mensagem já trouxe o valor calculado (ex: formato de outro bot
         # que já faz essa conta usando a sua própria banca) — usa direto,
         # só aplicando o limite (se tiver) como teto de segurança
@@ -172,17 +181,21 @@ async def _processar_aposta(db: Session, usuario: models.Usuario, chat_id, texto
         odd=aposta.odd,
         valor_apostado=valor,
         retorno_potencial=retorno,
+        tipster=aposta.tipster,
         origem=schemas.OrigemRegistro.telegram,
     )
     crud.criar_aposta(db, usuario.id, nova_aposta)
 
     detalhe_valor = ""
-    if aposta.percentual is not None and aposta.valor_direto is None:
+    if aposta.unidades is not None:
+        detalhe_valor = f" ({aposta.unidades}u)"
+    elif aposta.percentual is not None and aposta.valor_direto is None:
         detalhe_valor = f" ({aposta.percentual}% da banca)"
 
     await enviar_mensagem(
         chat_id,
         "✅ Aposta registrada!\n"
+        f"🎙️ Tipster: {aposta.tipster}\n"
         f"🏠 {aposta.casa}\n"
         f"📝 {aposta.descricao}\n"
         f"🏷️ Odd {aposta.odd}\n"

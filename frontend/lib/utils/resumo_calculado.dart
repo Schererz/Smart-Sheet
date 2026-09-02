@@ -96,3 +96,55 @@ List<ResumoPorCasa> calcularResumoPorCasaLocal(List<Aposta> apostas) {
   resultado.sort((a, b) => b.lucroTotal.compareTo(a.lucroTotal));
   return resultado;
 }
+
+/// Resumo agrupado por tipster (de quem veio a indicação) — mesma lógica
+/// do resumo por casa, mas agrupando por esse campo em vez do nome da casa.
+class ResumoPorTipster {
+  final String tipster;
+  final int totalApostas;
+  final double totalApostado;
+  final double lucroTotal;
+  final double? taxaAcerto;
+  final double? roiApostado;
+
+  ResumoPorTipster({
+    required this.tipster,
+    required this.totalApostas,
+    required this.totalApostado,
+    required this.lucroTotal,
+    this.taxaAcerto,
+    this.roiApostado,
+  });
+}
+
+List<ResumoPorTipster> calcularResumoPorTipsterLocal(List<Aposta> apostas) {
+  final porTipster = <String, List<Aposta>>{};
+  for (final a in apostas) {
+    final chave = (a.tipster == null || a.tipster!.trim().isEmpty) ? 'Sem tipster' : a.tipster!;
+    porTipster.putIfAbsent(chave, () => []).add(a);
+  }
+
+  final resultado = porTipster.entries.map((entrada) {
+    final apostasDoTipster = entrada.value;
+    final totalApostas = apostasDoTipster.length;
+    final totalApostado = apostasDoTipster.fold<double>(0, (soma, a) => soma + a.valorApostado);
+    final lucroTotal = apostasDoTipster.fold<double>(0, (soma, a) => soma + (a.lucro ?? 0));
+
+    final resolvidas = apostasDoTipster.where((a) => a.resultado != ResultadoAposta.aberto).toList();
+    final ganhas = resolvidas.where((a) => a.resultado == ResultadoAposta.green).length;
+    final taxaAcerto = resolvidas.isEmpty ? null : 100 * ganhas / resolvidas.length;
+    final roiApostado = totalApostado == 0 ? null : 100 * lucroTotal / totalApostado;
+
+    return ResumoPorTipster(
+      tipster: entrada.key,
+      totalApostas: totalApostas,
+      totalApostado: totalApostado,
+      lucroTotal: lucroTotal,
+      taxaAcerto: taxaAcerto,
+      roiApostado: roiApostado,
+    );
+  }).toList();
+
+  resultado.sort((a, b) => b.lucroTotal.compareTo(a.lucroTotal));
+  return resultado;
+}

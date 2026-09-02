@@ -154,6 +154,7 @@ class BetBase(BaseModel):
     retorno_potencial: float | None = None
     aumento_percentual: float | None = None  # ex: 30 = aposta turbinada com +30% no lucro
     resultado: ResultadoAposta = ResultadoAposta.aberto
+    tipster: str | None = None  # de qual grupo/pessoa veio a indicação
 
 
 class BetCreate(BetBase):
