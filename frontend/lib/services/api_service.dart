@@ -23,8 +23,8 @@ import 'auth_service.dart';
 /// - Depois do deploy: troque pela URL pública do backend (ex: Render).
 class ApiConfig {
   static String get baseUrl {
-    if (kIsWeb) return 'https://146-235-43-48.nip.io/';
-    return 'https://146-235-43-48.nip.io/';
+    if (kIsWeb) return 'https://146-235-43-48.nip.io';
+    return 'https://146-235-43-48.nip.io';
   }
 }
 
