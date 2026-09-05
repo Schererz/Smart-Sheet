@@ -1,0 +1,28 @@
+name: Deploy Backend (Oracle)
+
+# Só dispara quando algo dentro de backend/ muda no branch main — mudança
+# só no frontend não precisa disso (o Render já cuida daquela sozinho).
+"on":
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Conecta na VM e atualiza o backend
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 146.235.43.48
+          username: ubuntu
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          script: |
+            cd ~/Smart-Sheet
+            git pull
+            source backend/venv/bin/activate
+            pip install -r backend/requirements.txt --break-system-packages -q
+            deactivate
+            sudo systemctl restart smartsheet
+            sudo systemctl status smartsheet --no-pager
