@@ -5,7 +5,7 @@ import '../models/aposta.dart';
 import '../models/casa.dart';
 import '../theme/app_theme.dart';
 import '../utils/resumo_calculado.dart';
-import 'evolucao_banca_chart.dart';
+import 'evolucao_banca_multi_chart.dart';
 import 'lucro_chart.dart';
 import 'lucro_por_dia_list.dart';
 import 'resumo_casas_list.dart';
@@ -37,32 +37,6 @@ class ResumoHeader extends StatefulWidget {
 class _ResumoHeaderState extends State<ResumoHeader> {
   PeriodoSelecionado _periodo = PeriodoSelecionado.tudo;
 
-  List<PontoEvolucaoBanca> get _evolucaoFiltrada {
-    final inicio = _periodo.inicio;
-    final fim = _periodo.fim;
-    if (inicio == null && fim == null) return widget.evolucao;
-
-    var lista = widget.evolucao;
-
-    
-    if (inicio != null) {
-      final indicePrimeiro = lista.indexWhere((p) => !p.data.isBefore(inicio));
-      if (indicePrimeiro == -1) {
-        lista = const [];
-      } else if (indicePrimeiro > 0) {
-        lista = lista.sublist(indicePrimeiro - 1);
-      } else {
-        lista = lista.sublist(indicePrimeiro);
-      }
-    }
-
-    if (fim != null) {
-      lista = lista.where((p) => !p.data.isAfter(fim)).toList();
-    }
-
-    return lista;
-  }
-
   List<Aposta> get _apostasFiltradas {
     final inicio = _periodo.inicio;
     final fim = _periodo.fim;
@@ -79,6 +53,19 @@ class _ResumoHeaderState extends State<ResumoHeader> {
   List<ResumoPorCasa> get _resumoPorCasaFiltrado => calcularResumoPorCasaLocal(_apostasFiltradas);
 
   List<ResumoPorTipster> get _resumoPorTipsterFiltrado => calcularResumoPorTipsterLocal(_apostasFiltradas);
+
+  List<PontoEvolucaoBanca> get _evolucaoTotal =>
+      construirEvolucaoLocal(_apostasFiltradas, widget.resumo.bancaInicial);
+
+  List<PontoEvolucaoBanca> get _evolucaoGirino => construirEvolucaoLocal(
+        _apostasFiltradas.where((a) => a.tipster == 'Girino').toList(),
+        widget.resumo.bancaInicial,
+      );
+
+  List<PontoEvolucaoBanca> get _evolucaoProps => construirEvolucaoLocal(
+        _apostasFiltradas.where((a) => a.tipster == 'Props').toList(),
+        widget.resumo.bancaInicial,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +119,7 @@ class _ResumoHeaderState extends State<ResumoHeader> {
             style: TextStyle(color: corLucroPeriodo, fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 14),
-          EvolucaoBancaChart(pontos: _evolucaoFiltrada),
+          EvolucaoBancaMultiChart(total: _evolucaoTotal, girino: _evolucaoGirino, props: _evolucaoProps),
           const SizedBox(height: 18),
           const Text('Lucro por aposta', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13)),
           const SizedBox(height: 8),

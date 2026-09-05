@@ -27,6 +27,16 @@ def atualizar_banca_inicial(db: Session, usuario_id: int, valor: float) -> model
     return config
 
 
+def atualizar_valor_por_unidade(db: Session, usuario_id: int, valor: float) -> models.Configuracao:
+    """Muda quantos reais valem 1 unidade (usado pelo tipster Props via
+    Telegram) — configurável por comando ("Unidade = 4"), não fixo no código."""
+    config = obter_configuracao(db, usuario_id)
+    config.valor_por_unidade = valor
+    db.commit()
+    db.refresh(config)
+    return config
+
+
 def obter_evolucao_banca(db: Session, usuario_id: int):
     
     config = obter_configuracao(db, usuario_id)

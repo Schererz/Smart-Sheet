@@ -103,8 +103,53 @@ async def webhook(
         await _tentar_vincular(db, chat_id, texto)
         return {"ok": True}
 
+    if await _tentar_comando_configuracao(db, usuario, chat_id, texto):
+        return {"ok": True}
+
     await _processar_aposta(db, usuario, chat_id, texto)
     return {"ok": True}
+
+
+PADRAO_COMANDO_PERCENTUAL = re.compile(r'^%\s*=\s*(\d+(?:[.,]\d+)?)$')
+PADRAO_COMANDO_UNIDADE = re.compile(r'^unidade\s*=\s*(\d+(?:[.,]\d+)?)$', re.IGNORECASE)
+
+
+async def _tentar_comando_configuracao(db: Session, usuario: models.Usuario, chat_id, texto: str) -> bool:
+    """Comandos de configuração mandados direto no chat, sem precisar
+    abrir o app:
+      "% = 20"      -> define a banca de forma que 1% dela valha esse
+                       tanto (ex: "% = 20" quer dizer 1% = R$20, então a
+                       banca vira R$2000)
+      "Unidade = 4" -> muda quanto vale 1 unidade (tipster Props),
+                       daqui pra frente
+
+    Devolve True se a mensagem era um desses comandos (e já tratou tudo),
+    False se não era — nesse caso o chamador segue tentando interpretar
+    como aposta normalmente."""
+    texto_limpo = texto.strip()
+
+    m_pct = PADRAO_COMANDO_PERCENTUAL.match(texto_limpo)
+    if m_pct:
+        valor_pct = float(m_pct.group(1).replace(",", "."))
+        nova_banca = round(valor_pct * 100, 2)
+        crud.atualizar_banca_inicial(db, usuario.id, nova_banca)
+        await enviar_mensagem(
+            chat_id,
+            f"✅ Banca atualizada! 1% = R$ {valor_pct:.2f} → banca definida em R$ {nova_banca:.2f}.",
+        )
+        return True
+
+    m_un = PADRAO_COMANDO_UNIDADE.match(texto_limpo)
+    if m_un:
+        novo_valor = float(m_un.group(1).replace(",", "."))
+        crud.atualizar_valor_por_unidade(db, usuario.id, novo_valor)
+        await enviar_mensagem(
+            chat_id,
+            f"✅ Unidade atualizada! A partir de agora, 1u = R$ {novo_valor:.2f}.",
+        )
+        return True
+
+    return False
 
 
 async def _tentar_vincular(db: Session, chat_id, texto: str) -> None:
@@ -140,12 +185,15 @@ async def _processar_aposta(db: Session, usuario: models.Usuario, chat_id, texto
         return
 
     if aposta.unidades is not None:
-        # tipster Props: valor fixo por unidade (1u = R$5), não depende
-        # da banca — mas ainda respeita o limite, se a mensagem trouxer um
-        valor = calcular_valor_por_unidades(aposta.unidades, aposta.limite)
+        # tipster Props: valor fixo por unidade (configurável por comando
+        # "Unidade = X", padrão R$5), não depende da banca — mas ainda
+        # respeita o limite, se a mensagem trouxer um
+        config = crud.obter_configuracao(db, usuario.id)
+        valor_unidade = config.valor_por_unidade
+        valor = calcular_valor_por_unidades(aposta.unidades, aposta.limite, valor_unidade)
         retorno = aposta.retorno_direto if aposta.retorno_direto is not None else round(valor * aposta.odd, 2)
         aviso_limite = ""
-        valor_sem_limite = round(aposta.unidades * 5.0, 2)
+        valor_sem_limite = round(aposta.unidades * valor_unidade, 2)
         if aposta.limite is not None and valor_sem_limite > aposta.limite:
             aviso_limite = f" (seria R$ {valor_sem_limite:.2f}, mas o limite da aposta é R$ {aposta.limite:.2f})"
     elif aposta.valor_direto is not None:

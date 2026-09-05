@@ -154,10 +154,11 @@ def calcular_valor_apostado(percentual: float, banca_inicial: float, limite: flo
     return valor
 
 
-def calcular_valor_por_unidades(unidades: float, limite: float | None = None) -> float:
-    """1 unidade = R$5, valor fixo — não depende da banca. Ainda assim
+def calcular_valor_por_unidades(unidades: float, limite: float | None = None, valor_unidade: float = VALOR_POR_UNIDADE) -> float:
+    """1 unidade = R$ valor_unidade (por padrão R$5, mas configurável por
+    comando no bot — "Unidade = 4"). Não depende da banca. Ainda assim
     respeita um limite máximo, se a mensagem trouxer um."""
-    valor = round(unidades * VALOR_POR_UNIDADE, 2)
+    valor = round(unidades * valor_unidade, 2)
     if limite is not None:
         valor = min(valor, limite)
     return valor

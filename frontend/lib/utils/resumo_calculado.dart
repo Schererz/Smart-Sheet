@@ -148,3 +148,32 @@ List<ResumoPorTipster> calcularResumoPorTipsterLocal(List<Aposta> apostas) {
   resultado.sort((a, b) => b.lucroTotal.compareTo(a.lucroTotal));
   return resultado;
 }
+
+/// Constrói uma série de evolução (tipo "evolução da banca"), mas
+/// calculada no próprio app a partir de uma lista de apostas já filtrada
+/// — usada pras 3 linhas do gráfico (total / Girino / Props), todas
+/// partindo do mesmo ponto de banca inicial, cada uma acumulando só o
+/// lucro do subconjunto de apostas que lhe cabe.
+List<PontoEvolucaoBanca> construirEvolucaoLocal(List<Aposta> apostas, double bancaBase) {
+  if (apostas.isEmpty) return [];
+
+  final ordenadas = [...apostas]..sort((a, b) => a.data.compareTo(b.data));
+  final porDia = <DateTime, double>{};
+  for (final a in ordenadas) {
+    final dia = DateTime(a.data.year, a.data.month, a.data.day);
+    porDia[dia] = (porDia[dia] ?? 0) + (a.lucro ?? 0);
+  }
+  final dias = porDia.keys.toList()..sort();
+
+  // âncora um dia ANTES do primeiro dado real, pra não duplicar o mesmo
+  // dia com dois valores diferentes (banca base, depois já com lucro)
+  final ancora = dias.first.subtract(const Duration(days: 1));
+  final pontos = <PontoEvolucaoBanca>[PontoEvolucaoBanca(data: ancora, banca: bancaBase)];
+
+  var acumulado = bancaBase;
+  for (final dia in dias) {
+    acumulado += porDia[dia]!;
+    pontos.add(PontoEvolucaoBanca(data: dia, banca: double.parse(acumulado.toStringAsFixed(2))));
+  }
+  return pontos;
+}

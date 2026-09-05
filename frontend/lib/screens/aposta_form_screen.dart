@@ -47,6 +47,8 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
   static const _opcoesAumento = [10.0, 25.0, 30.0, 50.0];
 
   late ResultadoAposta _resultado;
+  late String _tipsterSelecionado;
+  static const _opcoesTipster = ['Girino', 'Props', 'Própria', 'Outro'];
 
   @override
   void initState() {
@@ -55,7 +57,17 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
     final a = widget.apostaExistente;
 
     _descricao = TextEditingController(text: a?.descricao ?? r?.descricao ?? '');
-    _tipster = TextEditingController(text: a?.tipster ?? '');
+    final tipsterAtual = a?.tipster;
+    if (tipsterAtual == null || tipsterAtual.trim().isEmpty) {
+      _tipsterSelecionado = 'Girino';
+      _tipster = TextEditingController();
+    } else if (_opcoesTipster.contains(tipsterAtual)) {
+      _tipsterSelecionado = tipsterAtual;
+      _tipster = TextEditingController();
+    } else {
+      _tipsterSelecionado = 'Outro';
+      _tipster = TextEditingController(text: tipsterAtual);
+    }
     _odd = TextEditingController(text: (a?.odd ?? r?.odd)?.toStringAsFixed(2) ?? '');
     _valorApostado = TextEditingController(text: (a?.valorApostado ?? r?.valorApostado)?.toStringAsFixed(2) ?? '');
     _retornoPotencial = TextEditingController(
@@ -169,6 +181,10 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
     }
     setState(() => _salvando = true);
 
+    final tipsterFinal = _tipsterSelecionado == 'Outro'
+        ? (_tipster.text.trim().isEmpty ? null : _tipster.text.trim())
+        : _tipsterSelecionado;
+
     try {
       if (widget.apostaExistente != null) {
         await _api.atualizarAposta(widget.apostaExistente!.id!, {
@@ -179,7 +195,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
           'retorno_potencial': _paraDouble(_retornoPotencial.text),
           'aumento_percentual': _turbinada ? _aumentoPercentual : null,
           'resultado': _resultado.name,
-          'tipster': _tipster.text.trim().isEmpty ? null : _tipster.text.trim(),
+          'tipster': tipsterFinal,
         });
       } else {
         final aposta = Aposta(
@@ -192,7 +208,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
           aumentoPercentual: _turbinada ? _aumentoPercentual : null,
           resultado: _resultado,
           origem: widget.origem,
-          tipster: _tipster.text.trim().isEmpty ? null : _tipster.text.trim(),
+          tipster: tipsterFinal,
         );
         await _api.criarAposta(aposta, blocosOcr: widget.blocosOcr, sugestaoOriginal: widget.rascunho);
       }
@@ -367,11 +383,26 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
               decoration: const InputDecoration(hintText: 'Ex: Flamengo x Palmeiras - Over 2.5'),
             ),
             const SizedBox(height: 16),
-            _RotuloCampo('Tipster (opcional)'),
-            TextFormField(
-              controller: _tipster,
-              decoration: const InputDecoration(hintText: 'Ex: Girino, Props'),
+            _RotuloCampo('Tipster'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _opcoesTipster.map((opcao) {
+                return _ChipStatus(
+                  rotulo: opcao,
+                  cor: AppColors.destaque,
+                  selecionado: _tipsterSelecionado == opcao,
+                  onTap: () => setState(() => _tipsterSelecionado = opcao),
+                );
+              }).toList(),
             ),
+            if (_tipsterSelecionado == 'Outro') ...[
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _tipster,
+                decoration: const InputDecoration(hintText: 'Digite o nome do tipster'),
+              ),
+            ],
             const SizedBox(height: 16),
             Row(
               children: [

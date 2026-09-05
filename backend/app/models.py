@@ -75,6 +75,8 @@ class Configuracao(Base):
 
     modo_mensal_ativado = Column(Boolean, default=False, nullable=False)
 
+    valor_por_unidade = Column(Float, default=5.0, nullable=False)  # 1u = quantos R$ (Telegram, tipster Props)
+
 
 class Casa(Base):
     """Uma casa de apostas cadastrada pelo usuário. Cresce com o tempo:
