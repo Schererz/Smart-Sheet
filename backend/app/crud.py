@@ -3,7 +3,7 @@ import re
 import secrets
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from . import models, schemas
 
@@ -248,20 +248,41 @@ def obter_dataset_treino(db: Session, usuario_id: int, casa: str | None = None):
 
 
 def calcular_resumo(db: Session, usuario_id: int) -> dict:
-    base = db.query(models.Bet).filter(models.Bet.usuario_id == usuario_id)
+    """Junta o que antes eram 9 consultas separadas numa única consulta
+    agregada — cada uma dessas idas ao banco custava uma volta de rede
+    inteira (Neon fica longe da VM), então isso é bem mais rápido na
+    prática do que parece só olhando o código."""
+    stats = (
+        db.query(
+            func.count(models.Bet.id),
+            func.sum(models.Bet.valor_apostado),
+            func.sum(models.Bet.lucro),
+            func.avg(models.Bet.odd),
+            func.avg(models.Bet.valor_apostado),
+            func.max(models.Bet.lucro),
+            func.min(models.Bet.lucro),
+            func.sum(case((models.Bet.resultado == models.ResultadoAposta.aberto, 1), else_=0)),
+            func.sum(case((models.Bet.resultado == models.ResultadoAposta.green, 1), else_=0)),
+            func.sum(case(
+                (models.Bet.resultado.in_([models.ResultadoAposta.green, models.ResultadoAposta.red]), 1),
+                else_=0,
+            )),
+        )
+        .filter(models.Bet.usuario_id == usuario_id)
+        .one()
+    )
+    (
+        total_apostas, total_apostado, lucro_total, odd_media, valor_medio_apostado,
+        maior_lucro, maior_prejuizo, apostas_em_aberto, ganhas, resolvidas_count,
+    ) = stats
 
-    total_apostas = base.count()
-    total_apostado = db.query(func.sum(models.Bet.valor_apostado)).filter(models.Bet.usuario_id == usuario_id).scalar() or 0.0
-    lucro_total = db.query(func.sum(models.Bet.lucro)).filter(models.Bet.usuario_id == usuario_id).scalar() or 0.0
-    odd_media = db.query(func.avg(models.Bet.odd)).filter(models.Bet.usuario_id == usuario_id).scalar()
-    valor_medio_apostado = db.query(func.avg(models.Bet.valor_apostado)).filter(models.Bet.usuario_id == usuario_id).scalar()
-    maior_lucro = db.query(func.max(models.Bet.lucro)).filter(models.Bet.usuario_id == usuario_id).scalar()
-    maior_prejuizo = db.query(func.min(models.Bet.lucro)).filter(models.Bet.usuario_id == usuario_id).scalar()
-    apostas_em_aberto = base.filter(models.Bet.resultado == models.ResultadoAposta.aberto).count()
+    total_apostado = total_apostado or 0.0
+    lucro_total = lucro_total or 0.0
+    apostas_em_aberto = apostas_em_aberto or 0
+    ganhas = ganhas or 0
+    resolvidas_count = resolvidas_count or 0
 
-    resolvidas = base.filter(models.Bet.resultado.in_([models.ResultadoAposta.green, models.ResultadoAposta.red])).all()
-    ganhas = sum(1 for a in resolvidas if a.resultado == models.ResultadoAposta.green)
-    taxa_acerto = round(100 * ganhas / len(resolvidas), 1) if resolvidas else None
+    taxa_acerto = round(100 * ganhas / resolvidas_count, 1) if resolvidas_count else None
     roi = round(100 * lucro_total / total_apostado, 1) if total_apostado else None
 
     config = obter_configuracao(db, usuario_id)
@@ -283,49 +304,57 @@ def calcular_resumo(db: Session, usuario_id: int) -> dict:
 
 
 def obter_resumo_por_casa(db: Session, usuario_id: int) -> list[dict]:
-    """Estatísticas separadas por casa — pra comparar qual está indo melhor."""
+    """Estatísticas separadas por casa — antes fazia 1 consulta pra cada
+    casa cadastrada (N+1); agora é uma consulta só, agrupada por casa
+    (GROUP BY), não importa quantas casas existam."""
     casas = listar_casas(db, usuario_id)
-    resultado = []
+    banca_inicial_por_casa = {c.nome: c.banca_inicial for c in casas}
 
-    for casa in casas:
-        apostas_da_casa = (
-            db.query(models.Bet)
-            .filter(models.Bet.usuario_id == usuario_id, models.Bet.casa_de_apostas == casa.nome)
-            .all()
+    linhas = (
+        db.query(
+            models.Bet.casa_de_apostas,
+            func.count(models.Bet.id),
+            func.sum(models.Bet.valor_apostado),
+            func.sum(models.Bet.lucro),
+            func.avg(models.Bet.odd),
+            func.sum(case((models.Bet.resultado == models.ResultadoAposta.green, 1), else_=0)),
+            func.sum(case(
+                (models.Bet.resultado.in_([models.ResultadoAposta.green, models.ResultadoAposta.red]), 1),
+                else_=0,
+            )),
         )
-        if not apostas_da_casa:
-            continue  # casa cadastrada mas sem apostas ainda — não mostra no resumo
+        .filter(models.Bet.usuario_id == usuario_id)
+        .group_by(models.Bet.casa_de_apostas)
+        .all()
+    )
 
-        total_apostas = len(apostas_da_casa)
-        total_apostado = sum(a.valor_apostado for a in apostas_da_casa)
-        lucro_total = sum(a.lucro or 0 for a in apostas_da_casa if a.lucro is not None)
-        odd_media = sum(a.odd for a in apostas_da_casa) / total_apostas
+    resultado = []
+    for casa_nome, total_apostas, total_apostado, lucro_total, odd_media, ganhas, resolvidas_count in linhas:
+        total_apostado = total_apostado or 0.0
+        lucro_total = lucro_total or 0.0
+        ganhas = ganhas or 0
+        resolvidas_count = resolvidas_count or 0
 
-        resolvidas = [a for a in apostas_da_casa if a.resultado in (models.ResultadoAposta.green, models.ResultadoAposta.red)]
-        ganhas = sum(1 for a in resolvidas if a.resultado == models.ResultadoAposta.green)
-        taxa_acerto = round(100 * ganhas / len(resolvidas), 1) if resolvidas else None
+        taxa_acerto = round(100 * ganhas / resolvidas_count, 1) if resolvidas_count else None
         roi_apostado = round(100 * lucro_total / total_apostado, 1) if total_apostado else None
 
-        banca_atual = round(casa.banca_inicial + lucro_total, 2) if casa.banca_inicial is not None else None
-        roi_banca = (
-            round(100 * lucro_total / casa.banca_inicial, 1)
-            if casa.banca_inicial else None
-        )
+        banca_inicial = banca_inicial_por_casa.get(casa_nome)
+        banca_atual = round(banca_inicial + lucro_total, 2) if banca_inicial is not None else None
+        roi_banca = round(100 * lucro_total / banca_inicial, 1) if banca_inicial else None
 
         resultado.append({
-            "casa": casa.nome,
+            "casa": casa_nome,
             "total_apostas": total_apostas,
             "total_apostado": round(total_apostado, 2),
             "lucro_total": round(lucro_total, 2),
             "taxa_acerto": taxa_acerto,
-            "odd_media": round(odd_media, 2),
+            "odd_media": round(odd_media, 2) if odd_media else None,
             "roi_apostado": roi_apostado,
-            "banca_inicial": casa.banca_inicial,
+            "banca_inicial": banca_inicial,
             "banca_atual": banca_atual,
             "roi_banca": roi_banca,
         })
 
-    # mais lucrativa primeiro
     resultado.sort(key=lambda r: r["lucro_total"], reverse=True)
     return resultado
 
@@ -453,38 +482,50 @@ def calcular_banca_por_localizacao(db: Session, usuario_id: int) -> dict:
     total) entre "quanto está em cada casa" e "quanto está fora, disponível
     pra depositar". Saldo de cada casa = depósitos - saques + lucro das
     apostas daquela casa. O "banco" é sempre o que sobra — por construção,
-    banco + soma das casas sempre bate com a banca atual total."""
+    banco + soma das casas sempre bate com a banca atual total.
+
+    Antes fazia 3 consultas PRA CADA casa (depósitos, saques, lucro) —
+    agora são só 2 consultas no total (uma agrupada por casa+tipo de
+    movimentação, outra agrupada por casa pro lucro), não importa quantas
+    casas existam."""
     resumo_geral = calcular_resumo(db, usuario_id)
     banca_atual_global = resumo_geral["banca_atual"]
 
     casas = listar_casas(db, usuario_id)
+    id_para_nome = {c.id: c.nome for c in casas}
+
+    movimentacoes_agrupadas = (
+        db.query(
+            models.MovimentacaoCasa.casa_id,
+            models.MovimentacaoCasa.tipo,
+            func.sum(models.MovimentacaoCasa.valor),
+        )
+        .filter(models.MovimentacaoCasa.usuario_id == usuario_id)
+        .group_by(models.MovimentacaoCasa.casa_id, models.MovimentacaoCasa.tipo)
+        .all()
+    )
+    depositos_por_casa: dict[int, float] = {}
+    saques_por_casa: dict[int, float] = {}
+    for casa_id, tipo, soma in movimentacoes_agrupadas:
+        if tipo == models.TipoMovimentacao.deposito:
+            depositos_por_casa[casa_id] = soma or 0.0
+        else:
+            saques_por_casa[casa_id] = soma or 0.0
+
+    lucro_por_casa_nome = dict(
+        db.query(models.Bet.casa_de_apostas, func.sum(models.Bet.lucro))
+        .filter(models.Bet.usuario_id == usuario_id)
+        .group_by(models.Bet.casa_de_apostas)
+        .all()
+    )
+
     resultado_casas = []
     total_alocado = 0.0
 
     for casa in casas:
-        depositos = (
-            db.query(func.sum(models.MovimentacaoCasa.valor))
-            .filter(
-                models.MovimentacaoCasa.usuario_id == usuario_id,
-                models.MovimentacaoCasa.casa_id == casa.id,
-                models.MovimentacaoCasa.tipo == models.TipoMovimentacao.deposito,
-            )
-            .scalar() or 0.0
-        )
-        saques = (
-            db.query(func.sum(models.MovimentacaoCasa.valor))
-            .filter(
-                models.MovimentacaoCasa.usuario_id == usuario_id,
-                models.MovimentacaoCasa.casa_id == casa.id,
-                models.MovimentacaoCasa.tipo == models.TipoMovimentacao.saque,
-            )
-            .scalar() or 0.0
-        )
-        lucro_casa = (
-            db.query(func.sum(models.Bet.lucro))
-            .filter(models.Bet.usuario_id == usuario_id, models.Bet.casa_de_apostas == casa.nome)
-            .scalar() or 0.0
-        )
+        depositos = depositos_por_casa.get(casa.id, 0.0)
+        saques = saques_por_casa.get(casa.id, 0.0)
+        lucro_casa = lucro_por_casa_nome.get(casa.nome) or 0.0
 
         saldo = depositos - saques + lucro_casa
         if depositos or saques or lucro_casa:  # só mostra casas com alguma movimentação/aposta
@@ -543,101 +584,6 @@ def definir_intervalo_unidade(db: Session, usuario_id: int, dias: int) -> dict:
     config.intervalo_recalculo_dias = dias
     db.commit()
     return obter_status_unidade(db, usuario_id)
-
-
-# ---------------- Sugestão de depósito ----------------
-
-def _arredondar_50(valor: float) -> float:
-    return round(valor / 50) * 50
-
-
-def _arredondar_10_baixo(valor: float) -> float:
-    import math
-    return math.floor(valor / 10) * 10
-
-
-def calcular_sugestao_deposito(
-    db: Session,
-    usuario_id: int,
-    banca_total_mes: float,
-    dias_periodo: int = 30,
-    fator_retencao: float = 0.7,
-    valor_minimo: float = 50,
-    valor_maximo: float = 300,
-) -> dict:
-    """Reproduz o método que o usuário já usava manualmente na planilha:
-    cada casa recebe uma fatia da banca do próximo período PROPORCIONAL
-    à participação dela no lucro total (só contam as casas que deram
-    lucro positivo) — multiplicada por um fator de retenção (ex: 70%),
-    porque a ideia é depositar um pouco MENOS que a participação de
-    lucro, deixando uma folga guardada como reserva. Casas que
-    participaram mas não lucraram recebem só o mínimo. Tudo é limitado
-    entre um piso e um teto (nenhuma casa fica muito subfinanciada nem
-    concentra demais)."""
-    data_corte = date.today() - timedelta(days=dias_periodo)
-
-    apostas = (
-        db.query(models.Bet)
-        .filter(models.Bet.usuario_id == usuario_id, models.Bet.data >= data_corte)
-        .all()
-    )
-
-    lucro_por_casa: dict[str, float] = {}
-    for aposta in apostas:
-        lucro_por_casa[aposta.casa_de_apostas] = lucro_por_casa.get(aposta.casa_de_apostas, 0.0) + (aposta.lucro or 0.0)
-
-    casas_com_atividade = list(lucro_por_casa.keys())
-    if not casas_com_atividade:
-        return {
-            "sugestoes": [],
-            "banco_sugerido": round(banca_total_mes, 2),
-            "nova_unidade_sugerida": _calcular_unidade(banca_total_mes),
-            "banca_insuficiente_para_minimos": False,
-        }
-
-    lucro_total_positivo = sum(l for l in lucro_por_casa.values() if l > 0)
-
-    brutos: dict[str, float] = {}
-    participacoes: dict[str, float] = {}
-    for casa in casas_com_atividade:
-        lucro = lucro_por_casa[casa]
-        if lucro > 0 and lucro_total_positivo > 0:
-            participacao = lucro / lucro_total_positivo
-            bruto = banca_total_mes * participacao * fator_retencao
-        else:
-            participacao = 0.0
-            bruto = valor_minimo
-        participacoes[casa] = round(participacao * 100, 1)
-        brutos[casa] = max(valor_minimo, min(valor_maximo, _arredondar_50(bruto)))
-
-    soma = sum(brutos.values())
-    banca_insuficiente = False
-    if soma > banca_total_mes:
-        fator = banca_total_mes / soma
-        # na redução de emergência, arredonda mais fino (10 em vez de 50)
-        # e pra baixo — nesse cenário extremo pode não dar pra garantir
-        # o mínimo pra todo mundo, e isso fica sinalizado na resposta
-        brutos = {c: max(0.0, _arredondar_10_baixo(v * fator)) for c, v in brutos.items()}
-        banca_insuficiente = True
-
-    banco_sugerido = round(banca_total_mes - sum(brutos.values()), 2)
-
-    itens = [
-        {
-            "casa": casa,
-            "lucro_periodo": round(lucro_por_casa[casa], 2),
-            "participacao_pct": participacoes[casa],
-            "sugerido": brutos[casa],
-        }
-        for casa in sorted(brutos, key=lambda c: brutos[c], reverse=True)
-    ]
-
-    return {
-        "sugestoes": itens,
-        "banco_sugerido": banco_sugerido,
-        "nova_unidade_sugerida": _calcular_unidade(banca_total_mes),
-        "banca_insuficiente_para_minimos": banca_insuficiente,
-    }
 
 
 # ---------------- Ciclos mensais ----------------

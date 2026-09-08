@@ -232,30 +232,6 @@ class IntervaloUnidadeUpdate(BaseModel):
     intervalo_dias: int  # 7 = semanal, 30 = mensal
 
 
-# ---------------- Sugestão de depósito ----------------
-
-class SugestaoDepositoRequest(BaseModel):
-    banca_total_mes: float
-    dias_periodo: int = 30        # período de onde vem o lucro considerado (padrão: mês passado)
-    fator_retencao: float = 0.7   # quanto da participação no lucro vira % de depósito (0.7 = 70%)
-    valor_minimo: float = 50
-    valor_maximo: float = 300
-
-
-class ItemSugestaoDeposito(BaseModel):
-    casa: str
-    lucro_periodo: float
-    participacao_pct: float  # % que essa casa teve do lucro total positivo do período
-    sugerido: float
-
-
-class SugestaoDepositoResponse(BaseModel):
-    sugestoes: list[ItemSugestaoDeposito]
-    banco_sugerido: float
-    nova_unidade_sugerida: float
-    banca_insuficiente_para_minimos: bool  # caso extremo: nem o mínimo coube em todas as casas
-
-
 # ---------------- Ciclos mensais ----------------
 
 class CicloMensalOut(BaseModel):
