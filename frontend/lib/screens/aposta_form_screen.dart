@@ -48,7 +48,7 @@ class _ApostaFormScreenState extends State<ApostaFormScreen> {
 
   late ResultadoAposta _resultado;
   late String _tipsterSelecionado;
-  static const _opcoesTipster = ['Girino', 'Props', 'Própria', 'Outro'];
+  static const _opcoesTipster = ['Girino', 'Props', 'Águas', 'Própria', 'Outro'];
 
   @override
   void initState() {

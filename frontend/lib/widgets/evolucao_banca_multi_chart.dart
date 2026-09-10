@@ -3,34 +3,68 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../models/aposta.dart';
 import '../theme/app_theme.dart';
+import '../utils/resumo_calculado.dart';
 
+/// Paleta usada pras linhas de tipster (a linha "Total" tem cor própria,
+/// verde/vermelho conforme o resultado). Se aparecerem mais tipsters que
+/// cores, ela repete — o que é aceitável, já que na prática são poucos.
+const coresTipster = [
+  Color(0xFF4B9EE0), // azul
+  Color(0xFFE0B84B), // amarelo
+  Color(0xFF9B6FE0), // roxo
+  Color(0xFF4BE0B8), // turquesa
+  Color(0xFFE06FA8), // rosa
+];
+
+const _semTipster = 'Sem tipster';
+
+/// Gráfico de evolução da banca com uma linha por tipster.
+///
+/// Os botões embaixo NÃO são só "mostrar/esconder a linha": desmarcar um
+/// tipster o remove do cálculo do TOTAL também, respondendo "como estaria
+/// minha banca se eu não tivesse seguido esse cara?".
 class EvolucaoBancaMultiChart extends StatefulWidget {
-  final List<PontoEvolucaoBanca> total;
-  final List<PontoEvolucaoBanca> girino;
-  final List<PontoEvolucaoBanca> props;
+  final List<Aposta> apostas;
+  final double bancaInicial;
 
-  const EvolucaoBancaMultiChart({
-    super.key,
-    required this.total,
-    required this.girino,
-    required this.props,
-  });
+  const EvolucaoBancaMultiChart({super.key, required this.apostas, required this.bancaInicial});
 
   @override
   State<EvolucaoBancaMultiChart> createState() => _EvolucaoBancaMultiChartState();
 }
 
 class _EvolucaoBancaMultiChartState extends State<EvolucaoBancaMultiChart> {
-  static const _corGirino = Color(0xFF4B9EE0);
-  static const _corProps = Color(0xFFE0B84B);
+  final Set<String> _excluidos = {};
 
-  bool _mostrarTotal = true;
-  bool _mostrarGirino = true;
-  bool _mostrarProps = true;
+  String _tipsterDe(Aposta a) =>
+      (a.tipster == null || a.tipster!.trim().isEmpty) ? _semTipster : a.tipster!;
+
+  List<String> get _nomesTipsters {
+    final nomes = widget.apostas.map(_tipsterDe).toSet().toList()..sort();
+    return nomes;
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.total.length < 2) {
+    final nomes = _nomesTipsters;
+
+    // apostas que entram na conta do total: só as de tipsters marcados
+    final apostasConsideradas =
+        widget.apostas.where((a) => !_excluidos.contains(_tipsterDe(a))).toList();
+
+    final total = construirEvolucaoLocal(apostasConsideradas, widget.bancaInicial);
+
+    // uma linha por tipster que continua marcado
+    final series = <String, List<PontoEvolucaoBanca>>{};
+    for (final nome in nomes) {
+      if (_excluidos.contains(nome)) continue;
+      series[nome] = construirEvolucaoLocal(
+        widget.apostas.where((a) => _tipsterDe(a) == nome).toList(),
+        widget.bancaInicial,
+      );
+    }
+
+    if (widget.apostas.isEmpty) {
       return const SizedBox(
         height: 120,
         child: Center(
@@ -43,39 +77,36 @@ class _EvolucaoBancaMultiChartState extends State<EvolucaoBancaMultiChart> {
       );
     }
 
-    // alinha as 3 linhas pelo mesmo eixo de tempo real (dias desde a
-    // data mais antiga entre todas), não por índice — senão ficariam
-    // desalinhadas quando uma tiver menos pontos que a outra
     final todasAsDatas = [
-      ...widget.total.map((p) => p.data),
-      ...widget.girino.map((p) => p.data),
-      ...widget.props.map((p) => p.data),
+      ...total.map((p) => p.data),
+      for (final pontos in series.values) ...pontos.map((p) => p.data),
     ];
-    final dataMinima = todasAsDatas.reduce((a, b) => a.isBefore(b) ? a : b);
-
-    List<FlSpot> paraSpots(List<PontoEvolucaoBanca> pontos) {
-      return pontos.map((p) => FlSpot(p.data.difference(dataMinima).inDays.toDouble(), p.banca)).toList();
-    }
 
     final linhas = <LineChartBarData>[];
     final valoresY = <double>[];
 
-    if (_mostrarTotal) {
-      final subiu = widget.total.last.banca >= widget.total.first.banca;
-      final cor = subiu ? AppColors.green : AppColors.red;
-      final spots = paraSpots(widget.total);
-      valoresY.addAll(spots.map((s) => s.y));
-      linhas.add(_linha(spots, cor, comArea: true));
-    }
-    if (_mostrarGirino && widget.girino.length >= 2) {
-      final spots = paraSpots(widget.girino);
-      valoresY.addAll(spots.map((s) => s.y));
-      linhas.add(_linha(spots, _corGirino));
-    }
-    if (_mostrarProps && widget.props.length >= 2) {
-      final spots = paraSpots(widget.props);
-      valoresY.addAll(spots.map((s) => s.y));
-      linhas.add(_linha(spots, _corProps));
+    if (todasAsDatas.isNotEmpty) {
+      final dataMinima = todasAsDatas.reduce((a, b) => a.isBefore(b) ? a : b);
+
+      List<FlSpot> paraSpots(List<PontoEvolucaoBanca> pontos) => pontos
+          .map((p) => FlSpot(p.data.difference(dataMinima).inDays.toDouble(), p.banca))
+          .toList();
+
+      if (total.length >= 2) {
+        final subiu = total.last.banca >= total.first.banca;
+        final cor = subiu ? AppColors.green : AppColors.red;
+        final spots = paraSpots(total);
+        valoresY.addAll(spots.map((s) => s.y));
+        linhas.add(_linha(spots, cor, comArea: true));
+      }
+
+      for (var i = 0; i < nomes.length; i++) {
+        final pontos = series[nomes[i]];
+        if (pontos == null || pontos.length < 2) continue;
+        final spots = paraSpots(pontos);
+        valoresY.addAll(spots.map((s) => s.y));
+        linhas.add(_linha(spots, coresTipster[i % coresTipster.length]));
+      }
     }
 
     double minY = 0, maxY = 0;
@@ -92,7 +123,10 @@ class _EvolucaoBancaMultiChartState extends State<EvolucaoBancaMultiChart> {
           height: 140,
           child: linhas.isEmpty
               ? const Center(
-                  child: Text('Nenhuma linha selecionada', style: TextStyle(color: AppColors.textoSecundario, fontSize: 12)),
+                  child: Text(
+                    'Nenhum tipster selecionado',
+                    style: TextStyle(color: AppColors.textoSecundario, fontSize: 12),
+                  ),
                 )
               : LineChart(
                   LineChartData(
@@ -107,7 +141,8 @@ class _EvolucaoBancaMultiChartState extends State<EvolucaoBancaMultiChart> {
                         getTooltipItems: (spots) => spots.map((s) {
                           return LineTooltipItem(
                             'R\$ ${s.y.toStringAsFixed(2)}',
-                            const TextStyle(color: AppColors.textoPrimario, fontWeight: FontWeight.w600, fontSize: 12),
+                            const TextStyle(
+                                color: AppColors.textoPrimario, fontWeight: FontWeight.w600, fontSize: 12),
                           );
                         }).toList(),
                       ),
@@ -116,14 +151,32 @@ class _EvolucaoBancaMultiChartState extends State<EvolucaoBancaMultiChart> {
                   ),
                 ),
         ),
+        if (_excluidos.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Total sem ${_excluidos.join(", ")} — como estaria se você não tivesse essas apostas.',
+              style: const TextStyle(color: AppColors.textoSecundario, fontSize: 11.5),
+            ),
+          ),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
-            _botao('Total', AppColors.green, _mostrarTotal, () => setState(() => _mostrarTotal = !_mostrarTotal)),
-            _botao('Girino', _corGirino, _mostrarGirino, () => setState(() => _mostrarGirino = !_mostrarGirino)),
-            _botao('Props', _corProps, _mostrarProps, () => setState(() => _mostrarProps = !_mostrarProps)),
+            for (var i = 0; i < nomes.length; i++)
+              _botao(
+                nomes[i],
+                coresTipster[i % coresTipster.length],
+                !_excluidos.contains(nomes[i]),
+                () => setState(() {
+                  if (_excluidos.contains(nomes[i])) {
+                    _excluidos.remove(nomes[i]);
+                  } else {
+                    _excluidos.add(nomes[i]);
+                  }
+                }),
+              ),
           ],
         ),
       ],
@@ -164,6 +217,7 @@ class _EvolucaoBancaMultiChartState extends State<EvolucaoBancaMultiChart> {
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: ativo ? AppColors.textoPrimario : AppColors.textoSecundario,
+                decoration: ativo ? null : TextDecoration.lineThrough,
               ),
             ),
           ],

@@ -36,11 +36,40 @@ automaticamente — em qualquer outro caso, o tipster padrão é "Girino"
 (único usuário desse bot por enquanto, então não precisa perguntar).
 """
 import re
+import unicodedata
 from dataclasses import dataclass
 
 VALOR_POR_UNIDADE = 5.0  # 1u = R$5, fixo — não depende da banca
 TIPSTER_PADRAO = "Girino"
 TIPSTER_UNIDADES = "Props"
+
+# Tipsters que mandam mensagem no MESMO formato do padrão (Girino), então
+# não dá pra distinguir pelo conteúdo — o usuário escreve o nome numa
+# linha antes de colar a mensagem, e a gente usa isso pra marcar de quem
+# veio. A chave é o nome já normalizado (sem acento, minúsculo).
+TIPSTERS_POR_PREFIXO = {
+    "aguas": "Águas",
+}
+
+
+def _normalizar(texto: str) -> str:
+    """Tira acento e deixa minúsculo — pra reconhecer "Águas", "aguas",
+    "AGUAS" e "Aguas" todos como a mesma coisa."""
+    sem_acento = unicodedata.normalize("NFKD", texto).encode("ASCII", "ignore").decode()
+    return sem_acento.strip().lower()
+
+
+def extrair_tipster_do_prefixo(texto: str) -> tuple[str | None, str]:
+    """Se a primeira linha for só o nome de um tipster conhecido (ex:
+    "aguas"), devolve (nome oficial, resto da mensagem sem essa linha).
+    Senão, devolve (None, texto original inteiro)."""
+    linhas = texto.split("\n")
+    if not linhas:
+        return None, texto
+    primeira = re.sub(r"[:\-–—]\s*$", "", _normalizar(linhas[0])).strip()
+    if primeira in TIPSTERS_POR_PREFIXO:
+        return TIPSTERS_POR_PREFIXO[primeira], "\n".join(linhas[1:])
+    return None, texto
 
 
 @dataclass
@@ -55,6 +84,7 @@ class ApostaTelegram:
     valor_direto: float | None = None  # quando a mensagem já traz o valor calculado (ex: Shark Track)
     retorno_direto: float | None = None
     unidades: float | None = None  # formato "3u" — tipster Props
+    tipster_informado: str | None = None  # veio escrito antes da mensagem (ex: "aguas")
 
     @property
     def descricao(self) -> str | None:
@@ -63,6 +93,11 @@ class ApostaTelegram:
 
     @property
     def tipster(self) -> str:
+        """Prioridade: o que o usuário escreveu antes da mensagem (ex:
+        "aguas") > detecção automática por unidades (Props) > padrão
+        (Girino)."""
+        if self.tipster_informado:
+            return self.tipster_informado
         return TIPSTER_UNIDADES if self.unidades is not None else TIPSTER_PADRAO
 
     @property
@@ -93,7 +128,8 @@ def _num(texto: str) -> float | None:
 
 
 def parsear_mensagem(texto: str) -> ApostaTelegram:
-    aposta = ApostaTelegram()
+    tipster_informado, texto = extrair_tipster_do_prefixo(texto)
+    aposta = ApostaTelegram(tipster_informado=tipster_informado)
     for linha_bruta in texto.split("\n"):
         linha = linha_bruta.strip()
         if not linha:

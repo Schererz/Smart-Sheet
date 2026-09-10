@@ -54,19 +54,6 @@ class _ResumoHeaderState extends State<ResumoHeader> {
 
   List<ResumoPorTipster> get _resumoPorTipsterFiltrado => calcularResumoPorTipsterLocal(_apostasFiltradas);
 
-  List<PontoEvolucaoBanca> get _evolucaoTotal =>
-      construirEvolucaoLocal(_apostasFiltradas, widget.resumo.bancaInicial);
-
-  List<PontoEvolucaoBanca> get _evolucaoGirino => construirEvolucaoLocal(
-        _apostasFiltradas.where((a) => a.tipster == 'Girino').toList(),
-        widget.resumo.bancaInicial,
-      );
-
-  List<PontoEvolucaoBanca> get _evolucaoProps => construirEvolucaoLocal(
-        _apostasFiltradas.where((a) => a.tipster == 'Props').toList(),
-        widget.resumo.bancaInicial,
-      );
-
   @override
   Widget build(BuildContext context) {
     final formatoMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
@@ -119,7 +106,7 @@ class _ResumoHeaderState extends State<ResumoHeader> {
             style: TextStyle(color: corLucroPeriodo, fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 14),
-          EvolucaoBancaMultiChart(total: _evolucaoTotal, girino: _evolucaoGirino, props: _evolucaoProps),
+          EvolucaoBancaMultiChart(apostas: _apostasFiltradas, bancaInicial: widget.resumo.bancaInicial),
           const SizedBox(height: 18),
           const Text('Lucro por aposta', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13)),
           const SizedBox(height: 8),

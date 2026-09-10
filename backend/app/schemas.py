@@ -175,6 +175,7 @@ class BetUpdate(BaseModel):
     retorno_potencial: float | None = None
     aumento_percentual: float | None = None
     resultado: ResultadoAposta | None = None
+    tipster: str | None = None
 
 
 class BetOut(BetBase):
