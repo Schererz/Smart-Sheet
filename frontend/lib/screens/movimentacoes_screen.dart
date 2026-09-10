@@ -60,6 +60,44 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
     }
   }
 
+  /// Só troca o filtro (período ou casa) — as casas cadastradas e a banca
+  /// por localização não mudam com isso, então não faz sentido buscar de
+  /// novo, só a lista de movimentações precisa refletir o filtro novo.
+  Future<void> _recarregarMovimentacoes() async {
+    try {
+      final movimentacoes = await _api.listarMovimentacoes(
+        casaId: _casaFiltro,
+        dataInicio: _periodo.inicio,
+        dataFim: _periodo.fim,
+      );
+      setState(() => _movimentacoes = movimentacoes);
+    } catch (e) {
+      setState(() => _erro = 'Não consegui carregar: $e');
+    }
+  }
+
+  /// Depois de criar/excluir uma movimentação: a lista de casas continua
+  /// a mesma (isso não cria nem apaga casa nenhuma), só a banca por
+  /// localização e a própria lista de movimentações mudam.
+  Future<void> _recarregarAposMovimentacao() async {
+    try {
+      final resultados = await Future.wait([
+        _api.obterBancaPorLocalizacao(),
+        _api.listarMovimentacoes(
+          casaId: _casaFiltro,
+          dataInicio: _periodo.inicio,
+          dataFim: _periodo.fim,
+        ),
+      ]);
+      setState(() {
+        _bancaLocalizacao = resultados[0] as BancaPorLocalizacao;
+        _movimentacoes = resultados[1] as List<Movimentacao>;
+      });
+    } catch (e) {
+      setState(() => _erro = 'Não consegui carregar: $e');
+    }
+  }
+
   String _nomeCasa(int casaId) {
     final casa = _casas.where((c) => c.id == casaId).toList();
     return casa.isEmpty ? 'Casa #$casaId' : casa.first.nome;
@@ -79,13 +117,13 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _FormularioMovimentacao(casas: _casas),
     );
-    if (salvou == true) _carregarTudo();
+    if (salvou == true) _recarregarAposMovimentacao();
   }
 
   Future<void> _excluir(Movimentacao mov) async {
     try {
       await _api.deletarMovimentacao(mov.id);
-      _carregarTudo();
+      _recarregarAposMovimentacao();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Não consegui excluir: $e')));
@@ -132,7 +170,7 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
                         selecionado: _periodo,
                         onSelecionar: (p) {
                           setState(() => _periodo = p);
-                          _carregarTudo();
+                          _recarregarMovimentacoes();
                         },
                       ),
                       const SizedBox(height: 10),
@@ -145,7 +183,7 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
                               selecionado: _casaFiltro == null,
                               onTap: () {
                                 setState(() => _casaFiltro = null);
-                                _carregarTudo();
+                                _recarregarMovimentacoes();
                               },
                             ),
                             ..._casas.map(
@@ -156,7 +194,7 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
                                   selecionado: _casaFiltro == c.id,
                                   onTap: () {
                                     setState(() => _casaFiltro = c.id);
-                                    _carregarTudo();
+                                    _recarregarMovimentacoes();
                                   },
                                 ),
                               ),

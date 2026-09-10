@@ -9,7 +9,7 @@ possível e a descrição da aposta.
 import enum
 from datetime import datetime, date
 
-from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Text, JSON, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, Enum, Text, JSON, Boolean, ForeignKey, UniqueConstraint, Index
 from .database import Base
 
 
@@ -143,6 +143,14 @@ class Bet(Base):
 
     criado_em = Column(DateTime, default=datetime.utcnow, nullable=False)
     atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Praticamente toda consulta de apostas filtra por usuario_id e ordena
+    # (ou filtra) por data — um índice composto cobre esse par de uma vez,
+    # em vez do banco usar só o índice de usuario_id e depois ordenar tudo
+    # na mão. Faz mais diferença conforme o número de apostas cresce.
+    __table_args__ = (
+        Index("ix_bets_usuario_data", "usuario_id", "data"),
+    )
 
 
 def calcular_lucro(

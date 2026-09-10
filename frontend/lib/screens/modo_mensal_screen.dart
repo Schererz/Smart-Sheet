@@ -35,8 +35,12 @@ class _ModoMensalScreenState extends State<ModoMensalScreen> {
       _erro = null;
     });
     try {
-      final ativado = await _api.obterModoMensal();
-      final historico = await _api.listarCiclos();
+      final resultados = await Future.wait([
+        _api.obterModoMensal(),
+        _api.listarCiclos(),
+      ]);
+      final ativado = resultados[0] as bool;
+      final historico = resultados[1] as List<CicloMensal>;
       DashboardCiclo? dashboard;
       CicloMensal? atual;
       if (ativado && historico.isNotEmpty) {
@@ -56,10 +60,33 @@ class _ModoMensalScreenState extends State<ModoMensalScreen> {
     }
   }
 
+  /// Recarrega só ciclos/dashboard — usado depois de ações que NÃO mudam
+  /// o modo_mensal em si (a gente já sabe o valor dele, acabou de setar),
+  /// então não faz sentido buscar esse campo de novo do servidor.
+  Future<void> _recarregarCiclos() async {
+    try {
+      final historico = await _api.listarCiclos();
+      DashboardCiclo? dashboard;
+      CicloMensal? atual;
+      if (_modoAtivado && historico.isNotEmpty) {
+        atual = historico.firstWhere((c) => c.emAndamento, orElse: () => historico.first);
+        dashboard = await _api.obterDashboardCiclo(atual.id);
+      }
+      setState(() {
+        _historico = historico;
+        _cicloAtual = atual;
+        _dashboard = dashboard;
+      });
+    } catch (e) {
+      setState(() => _erro = 'Não consegui carregar: $e');
+    }
+  }
+
   Future<void> _alternarModo(bool valor) async {
     try {
       await _api.definirModoMensal(valor);
-      await _carregarTudo();
+      setState(() => _modoAtivado = valor);
+      await _recarregarCiclos();
       if (valor && _cicloAtual == null && mounted) {
         _mostrarDialogoIniciar();
       }
@@ -89,7 +116,7 @@ class _ModoMensalScreenState extends State<ModoMensalScreen> {
     if (confirmou == true) {
       try {
         await _api.iniciarCiclo();
-        _carregarTudo();
+        _recarregarCiclos();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Não consegui iniciar: $e')));

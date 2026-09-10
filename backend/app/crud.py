@@ -38,10 +38,12 @@ def atualizar_valor_por_unidade(db: Session, usuario_id: int, valor: float) -> m
 
 
 def obter_evolucao_banca(db: Session, usuario_id: int):
-    
+    """Busca só as 3 colunas que essa função usa (data, lucro, descrição)
+    em vez do objeto Bet inteiro — evita carregar ~15 colunas por aposta
+    e montar objetos completos à toa quando só precisamos de 3 campos."""
     config = obter_configuracao(db, usuario_id)
     resolvidas = (
-        db.query(models.Bet)
+        db.query(models.Bet.data, models.Bet.lucro, models.Bet.descricao)
         .filter(
             models.Bet.usuario_id == usuario_id,
             models.Bet.resultado.in_([models.ResultadoAposta.green, models.ResultadoAposta.red]),
@@ -54,9 +56,9 @@ def obter_evolucao_banca(db: Session, usuario_id: int):
     pontos = [{"data": data_inicial, "banca": config.banca_inicial, "descricao": "Banca inicial"}]
 
     acumulado = config.banca_inicial
-    for aposta in resolvidas:
-        acumulado += aposta.lucro or 0
-        pontos.append({"data": aposta.data, "banca": round(acumulado, 2), "descricao": aposta.descricao})
+    for data_aposta, lucro, descricao in resolvidas:
+        acumulado += lucro or 0
+        pontos.append({"data": data_aposta, "banca": round(acumulado, 2), "descricao": descricao})
     return pontos
 
 
@@ -360,28 +362,28 @@ def obter_resumo_por_casa(db: Session, usuario_id: int) -> list[dict]:
 
 
 def obter_lucro_por_dia(db: Session, usuario_id: int) -> list[dict]:
-    
-    apostas = (
-        db.query(models.Bet)
+    """Agrega direto no banco (GROUP BY data) em vez de trazer todas as
+    apostas pra memória e somar em Python — o banco devolve uma linha por
+    dia, não uma por aposta, o que é MUITO menos dado trafegado e menos
+    objeto pra montar."""
+    linhas = (
+        db.query(
+            models.Bet.data,
+            func.sum(models.Bet.lucro),
+            func.count(models.Bet.id),
+        )
         .filter(
             models.Bet.usuario_id == usuario_id,
             models.Bet.resultado.in_([models.ResultadoAposta.green, models.ResultadoAposta.red]),
         )
+        .group_by(models.Bet.data)
         .order_by(models.Bet.data.asc())
         .all()
     )
 
-    por_dia: dict = {}
-    for aposta in apostas:
-        chave = aposta.data
-        if chave not in por_dia:
-            por_dia[chave] = {"lucro": 0.0, "total_apostas": 0}
-        por_dia[chave]["lucro"] += aposta.lucro or 0
-        por_dia[chave]["total_apostas"] += 1
-
     return [
-        {"data": dia, "lucro": round(dados["lucro"], 2), "total_apostas": dados["total_apostas"]}
-        for dia, dados in sorted(por_dia.items())
+        {"data": dia, "lucro": round(lucro or 0.0, 2), "total_apostas": total}
+        for dia, lucro, total in linhas
     ]
 
 

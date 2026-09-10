@@ -138,10 +138,10 @@ class DashboardScreen extends StatelessWidget {
               if (valor == 'apagar_tudo') _apagarTudo(context);
               if (valor == 'telegram') abrirDialogoTelegram(context);
               if (valor == 'movimentacoes') {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const MovimentacoesScreen())).then((_) => onRefresh());
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const MovimentacoesScreen()));
                 }
               if (valor == 'modo_mensal') {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ModoMensalScreen())).then((_) => onRefresh());
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ModoMensalScreen()));
               }
             },
             itemBuilder: (_) => [

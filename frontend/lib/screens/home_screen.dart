@@ -4,6 +4,7 @@ import '../models/aposta.dart';
 import '../models/casa.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/resumo_calculado.dart';
 import 'apostas_screen.dart';
 import 'aposta_form_screen.dart';
 import 'dashboard_screen.dart';
@@ -134,6 +135,29 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Recalcula o resumo geral EM CIMA da lista de apostas que já temos no
+  /// app — evita uma segunda ida ao servidor toda vez que só uma aposta
+  /// muda (status, exclusão). banca_inicial e maior_lucro/maior_prejuizo
+  /// não mudam nessas ações, então reaproveita do resumo anterior (esses
+  /// dois últimos nem aparecem em nenhuma tela hoje, então tanto faz).
+  ResumoStats _recalcularResumoLocal() {
+    final calculado = calcularResumoLocal(_apostas);
+    return ResumoStats(
+      totalApostas: calculado.totalApostas,
+      totalApostado: calculado.totalApostado,
+      lucroTotal: calculado.lucroTotal,
+      taxaAcerto: calculado.taxaAcerto,
+      roi: calculado.roi,
+      bancaInicial: _resumo!.bancaInicial,
+      bancaAtual: _resumo!.bancaInicial + calculado.lucroTotal,
+      oddMedia: calculado.oddMedia,
+      valorMedioApostado: calculado.valorMedioApostado,
+      maiorLucro: _resumo!.maiorLucro,
+      maiorPrejuizo: _resumo!.maiorPrejuizo,
+      apostasEmAberto: calculado.apostasEmAberto,
+    );
+  }
+
   Future<void> _ciclarStatus(Aposta aposta) async {
     if (aposta.id == null) return;
     final indice = _apostas.indexWhere((a) => a.id == aposta.id);
@@ -141,9 +165,8 @@ class _HomeScreenState extends State<HomeScreen> {
       final atualizada = await _api.ciclarStatus(aposta.id!);
       setState(() {
         if (indice != -1) _apostas[indice] = atualizada;
+        _resumo = _recalcularResumoLocal();
       });
-      final novoResumo = await _api.obterResumo();
-      setState(() => _resumo = novoResumo);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Não consegui atualizar: $e')));
@@ -156,8 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _apostas.removeWhere((a) => a.id == aposta.id));
     try {
       await _api.deletarAposta(aposta.id!);
-      final novoResumo = await _api.obterResumo();
-      setState(() => _resumo = novoResumo);
+      setState(() => _resumo = _recalcularResumoLocal());
     } catch (e) {
       _carregarTudo();
     }
