@@ -5,7 +5,7 @@ import '../models/aposta.dart';
 import '../models/casa.dart';
 import '../theme/app_theme.dart';
 import '../utils/resumo_calculado.dart';
-import 'evolucao_banca_multi_chart.dart';
+import 'evolucao_banca_chart.dart';
 import 'lucro_chart.dart';
 import 'lucro_por_dia_list.dart';
 import 'resumo_casas_list.dart';
@@ -53,6 +53,9 @@ class _ResumoHeaderState extends State<ResumoHeader> {
   List<ResumoPorCasa> get _resumoPorCasaFiltrado => calcularResumoPorCasaLocal(_apostasFiltradas);
 
   List<ResumoPorTipster> get _resumoPorTipsterFiltrado => calcularResumoPorTipsterLocal(_apostasFiltradas);
+
+  List<PontoEvolucaoBanca> get _evolucaoTotal =>
+      construirEvolucaoLocal(_apostasFiltradas, widget.resumo.bancaInicial);
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +109,7 @@ class _ResumoHeaderState extends State<ResumoHeader> {
             style: TextStyle(color: corLucroPeriodo, fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 14),
-          EvolucaoBancaMultiChart(apostas: _apostasFiltradas, bancaInicial: widget.resumo.bancaInicial),
+          EvolucaoBancaChart(pontos: _evolucaoTotal),
           const SizedBox(height: 18),
           const Text('Lucro por aposta', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13)),
           const SizedBox(height: 8),

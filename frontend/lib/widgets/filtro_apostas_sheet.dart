@@ -11,21 +11,31 @@ Future<FiltroApostas?> abrirFiltroApostas(
   BuildContext context, {
   required FiltroApostas filtroAtual,
   required List<String> casasDisponiveis,
+  required List<String> tipstersDisponiveis,
 }) {
   return showModalBottomSheet<FiltroApostas>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.superficieAlta,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-    builder: (_) => _FiltroApostasSheet(filtroAtual: filtroAtual, casasDisponiveis: casasDisponiveis),
+    builder: (_) => _FiltroApostasSheet(
+      filtroAtual: filtroAtual,
+      casasDisponiveis: casasDisponiveis,
+      tipstersDisponiveis: tipstersDisponiveis,
+    ),
   );
 }
 
 class _FiltroApostasSheet extends StatefulWidget {
   final FiltroApostas filtroAtual;
   final List<String> casasDisponiveis;
+  final List<String> tipstersDisponiveis;
 
-  const _FiltroApostasSheet({required this.filtroAtual, required this.casasDisponiveis});
+  const _FiltroApostasSheet({
+    required this.filtroAtual,
+    required this.casasDisponiveis,
+    required this.tipstersDisponiveis,
+  });
 
   @override
   State<_FiltroApostasSheet> createState() => _FiltroApostasSheetState();
@@ -102,6 +112,27 @@ class _FiltroApostasSheetState extends State<_FiltroApostasSheet> {
                     rotulo: casa,
                     selecionado: _filtro.casa == casa,
                     onTap: () => setState(() => _filtro = _filtro.copyWith(casa: () => casa)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            const _Rotulo('Tipster'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _Chip(
+                  rotulo: 'Todos',
+                  selecionado: _filtro.tipster == null,
+                  onTap: () => setState(() => _filtro = _filtro.copyWith(tipster: () => null)),
+                ),
+                ...widget.tipstersDisponiveis.map(
+                  (tipster) => _Chip(
+                    rotulo: tipster,
+                    selecionado: _filtro.tipster == tipster,
+                    onTap: () => setState(() => _filtro = _filtro.copyWith(tipster: () => tipster)),
                   ),
                 ),
               ],

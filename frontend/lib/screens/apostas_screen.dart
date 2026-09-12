@@ -42,6 +42,15 @@ class _ApostasScreenState extends State<ApostasScreen> {
     return nomes;
   }
 
+  List<String> get _tipstersDisponiveis {
+    final nomes = widget.apostas
+        .map((a) => (a.tipster == null || a.tipster!.trim().isEmpty) ? 'Sem tipster' : a.tipster!)
+        .toSet()
+        .toList();
+    nomes.sort();
+    return nomes;
+  }
+
   /// Agrupa as apostas (já ordenadas por data, mais recente primeiro) em
   /// blocos por dia, preservando a ordem — pra desenhar os divisores tipo
   /// "Hoje", "Ontem", "11/08" etc.
@@ -69,6 +78,7 @@ class _ApostasScreenState extends State<ApostasScreen> {
       context,
       filtroAtual: _filtro,
       casasDisponiveis: _casasDisponiveis,
+      tipstersDisponiveis: _tipstersDisponiveis,
     );
     if (novoFiltro != null) {
       setState(() {

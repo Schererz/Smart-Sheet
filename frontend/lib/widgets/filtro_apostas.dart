@@ -3,34 +3,39 @@ import 'seletor_periodo.dart';
 
 class FiltroApostas {
   final String? casa;
+  final String? tipster;
   final ResultadoAposta? status;
   final PeriodoSelecionado periodo;
   final String busca;
 
   const FiltroApostas({
     this.casa,
+    this.tipster,
     this.status,
     this.periodo = PeriodoSelecionado.tudo,
     this.busca = '',
   });
 
   bool get temFiltroAtivo =>
-      casa != null || status != null || periodo != PeriodoSelecionado.tudo || busca.isNotEmpty;
+      casa != null || tipster != null || status != null || periodo != PeriodoSelecionado.tudo || busca.isNotEmpty;
 
   int get quantidadeAtiva =>
       (casa != null ? 1 : 0) +
+      (tipster != null ? 1 : 0) +
       (status != null ? 1 : 0) +
       (periodo != PeriodoSelecionado.tudo ? 1 : 0) +
       (busca.isNotEmpty ? 1 : 0);
 
   FiltroApostas copyWith({
     String? Function()? casa,
+    String? Function()? tipster,
     ResultadoAposta? Function()? status,
     PeriodoSelecionado? periodo,
     String? busca,
   }) {
     return FiltroApostas(
       casa: casa != null ? casa() : this.casa,
+      tipster: tipster != null ? tipster() : this.tipster,
       status: status != null ? status() : this.status,
       periodo: periodo ?? this.periodo,
       busca: busca ?? this.busca,
@@ -41,6 +46,12 @@ class FiltroApostas {
     var resultado = apostas;
     if (casa != null) {
       resultado = resultado.where((a) => a.casaDeApostas == casa).toList();
+    }
+    if (tipster != null) {
+      resultado = resultado.where((a) {
+        final tipsterDaAposta = (a.tipster == null || a.tipster!.trim().isEmpty) ? 'Sem tipster' : a.tipster!;
+        return tipsterDaAposta == tipster;
+      }).toList();
     }
     if (status != null) {
       resultado = resultado.where((a) => a.resultado == status).toList();
