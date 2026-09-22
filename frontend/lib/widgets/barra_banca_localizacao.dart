@@ -24,14 +24,27 @@ class BarraBancaLocalizacao extends StatelessWidget {
   Widget build(BuildContext context) {
     final formatoMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
-    // monta a lista de fatias: cada casa + o "banco" por último
+    if (dados.total <= 0) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'Defina sua banca (no Dashboard) pra essa barra funcionar — ela usa esse valor como referência de 100%.',
+          style: TextStyle(color: AppColors.textoSecundario, fontSize: 12.5),
+        ),
+      );
+    }
+
+    final somaAlocada = dados.casas.fold<double>(0, (s, c) => s + c.valor);
+    // se depositou mais do que a banca definida, "no banco" ficaria
+    // negativo — não faz sentido como fatia da barra, vira um aviso à parte
+    final excedeu = somaAlocada > dados.total;
+    final excedente = somaAlocada - dados.total;
+
     final fatias = <_Fatia>[
       for (var i = 0; i < dados.casas.length; i++)
         _Fatia(nome: dados.casas[i].casa, valor: dados.casas[i].valor, cor: _cores[i % _cores.length]),
-      _Fatia(nome: 'No banco', valor: dados.banco, cor: AppColors.borda),
-    ].where((f) => f.valor > 0).toList(); // não mostra fatia com valor zero/negativo
-
-    final total = dados.total <= 0 ? 1.0 : dados.total; // evita divisão por zero
+      if (!excedeu) _Fatia(nome: 'No banco', valor: dados.banco, cor: AppColors.borda),
+    ].where((f) => f.valor > 0).toList();
 
     if (fatias.isEmpty) {
       return const Padding(
@@ -43,9 +56,27 @@ class BarraBancaLocalizacao extends StatelessWidget {
       );
     }
 
+    // quando excedeu a banca, a barra passa a mostrar a proporção entre
+    // as casas dentro do que foi ALOCADO (não dá mais pra usar a banca
+    // como 100%, já que ela toda — e mais um pouco — já está nas casas)
+    final totalParaBarra = excedeu ? somaAlocada : dados.total;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (excedeu)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.destaque.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Você tem ${formatoMoeda.format(excedente)} a mais depositado do que sua banca configurada — isso é dinheiro que entrou do seu bolso, fora da banca.',
+              style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+            ),
+          ),
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: SizedBox(
@@ -53,7 +84,7 @@ class BarraBancaLocalizacao extends StatelessWidget {
             child: Row(
               children: fatias
                   .map((f) => Expanded(
-                        flex: (f.valor / total * 1000).round().clamp(1, 1000),
+                        flex: (f.valor / totalParaBarra * 1000).round().clamp(1, 1000),
                         child: Container(color: f.cor),
                       ))
                   .toList(),
@@ -65,7 +96,7 @@ class BarraBancaLocalizacao extends StatelessWidget {
           spacing: 14,
           runSpacing: 8,
           children: fatias.map((f) {
-            final pct = (f.valor / total * 100);
+            final pct = (f.valor / totalParaBarra * 100);
             return Row(
               mainAxisSize: MainAxisSize.min,
               children: [

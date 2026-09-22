@@ -50,7 +50,32 @@ class _ResumoHeaderState extends State<ResumoHeader> {
 
   ResumoCalculado get _resumoFiltrado => calcularResumoLocal(_apostasFiltradas);
 
-  List<ResumoPorCasa> get _resumoPorCasaFiltrado => calcularResumoPorCasaLocal(_apostasFiltradas);
+  /// Junta o lucro/estatísticas calculadas localmente (respeitam o filtro
+  /// de período) com a banca por casa que vem do backend (sempre o
+  /// histórico completo de depósitos — não faz sentido "filtrar por
+  /// período" quanto você já depositou no total, é uma pergunta diferente
+  /// de "quanto rendeu nesse período").
+  List<ResumoPorCasa> get _resumoPorCasaFiltrado {
+    final local = calcularResumoPorCasaLocal(_apostasFiltradas);
+    final bancaPorNome = {for (final c in widget.resumoPorCasa) c.casa: c};
+
+    return local.map((c) {
+      final doBackend = bancaPorNome[c.casa];
+      if (doBackend == null) return c;
+      return ResumoPorCasa(
+        casa: c.casa,
+        totalApostas: c.totalApostas,
+        totalApostado: c.totalApostado,
+        lucroTotal: c.lucroTotal,
+        taxaAcerto: c.taxaAcerto,
+        oddMedia: c.oddMedia,
+        roiApostado: c.roiApostado,
+        bancaInicial: doBackend.bancaInicial,
+        bancaAtual: doBackend.bancaAtual,
+        roiBanca: doBackend.roiBanca,
+      );
+    }).toList();
+  }
 
   List<ResumoPorTipster> get _resumoPorTipsterFiltrado => calcularResumoPorTipsterLocal(_apostasFiltradas);
 
@@ -84,11 +109,14 @@ class _ResumoHeaderState extends State<ResumoHeader> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Banca atual', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13)),
+                    Text(
+                      eTudo ? 'Lucro desde o início' : 'Lucro no período',
+                      style: const TextStyle(color: AppColors.textoSecundario, fontSize: 13),
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      formatoMoeda.format(bancaExibida),
-                      style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                      '${resumoPeriodo.lucroTotal >= 0 ? '+' : ''}${formatoMoeda.format(resumoPeriodo.lucroTotal)}',
+                      style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: corLucroPeriodo),
                     ),
                   ],
                 ),
@@ -100,15 +128,25 @@ class _ResumoHeaderState extends State<ResumoHeader> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              Text(
+                'Banca: ${formatoMoeda.format(bancaExibida)}',
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+              ),
+              Text(
+                '1% = ${formatoMoeda.format(widget.resumo.bancaInicial / 100)}',
+                style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           SeletorPeriodo(selecionado: _periodo, onSelecionar: (p) => setState(() => _periodo = p)),
           const SizedBox(height: 10),
-          Text(
-            '${resumoPeriodo.lucroTotal >= 0 ? '+' : ''}${formatoMoeda.format(resumoPeriodo.lucroTotal)}'
-            '${eTudo ? ' desde o início' : ' no período selecionado'}',
-            style: TextStyle(color: corLucroPeriodo, fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 14),
           EvolucaoBancaChart(pontos: _evolucaoTotal),
           const SizedBox(height: 18),
           const Text('Lucro por aposta', style: TextStyle(color: AppColors.textoSecundario, fontSize: 13)),
