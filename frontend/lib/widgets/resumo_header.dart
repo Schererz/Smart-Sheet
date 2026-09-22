@@ -56,6 +56,18 @@ class _ResumoHeaderState extends State<ResumoHeader> {
   /// período" quanto você já depositou no total, é uma pergunta diferente
   /// de "quanto rendeu nesse período").
   List<ResumoPorCasa> get _resumoPorCasaFiltrado {
+    final semFiltro = !_periodo.ehPersonalizado && _periodo.preset == PeriodoFiltro.tudo;
+    if (semFiltro) {
+      // sem filtro: usa direto o que o backend já manda, sem recalcular
+      // nada — evita duplicar lógica e os bugs de sincronia que isso já
+      // causou antes.
+      return widget.resumoPorCasa;
+    }
+
+    // com filtro de período: o lucro/estatísticas seguem o filtro, mas a
+    // banca (inicial/atual de cada casa) continua sendo sempre o total
+    // histórico do backend — não tem como saber "quanto tinha na casa
+    // naquele período específico", só faz sentido como valor de sempre.
     final local = calcularResumoPorCasaLocal(_apostasFiltradas);
     final bancaPorNome = {for (final c in widget.resumoPorCasa) c.casa: c};
 
@@ -88,10 +100,6 @@ class _ResumoHeaderState extends State<ResumoHeader> {
     final resumoPeriodo = _resumoFiltrado;
     final corLucroPeriodo = resumoPeriodo.lucroTotal >= 0 ? AppColors.green : AppColors.red;
     final eTudo = !_periodo.ehPersonalizado && _periodo.preset == PeriodoFiltro.tudo;
-    // banca "exibida" acompanha o período: banca inicial + lucro só do
-    // período escolhido (quando o período é "Tudo", isso já bate com o
-    // valor de sempre, banca_inicial + lucro_total).
-    final bancaExibida = widget.resumo.bancaInicial + resumoPeriodo.lucroTotal;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
@@ -135,13 +143,14 @@ class _ResumoHeaderState extends State<ResumoHeader> {
             runSpacing: 4,
             children: [
               Text(
-                'Banca: ${formatoMoeda.format(bancaExibida)}',
+                'Banca: ${formatoMoeda.format(widget.resumo.bancaInicial)}',
                 style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
               ),
-              Text(
-                '1% = ${formatoMoeda.format(widget.resumo.bancaInicial / 100)}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario),
-              ),
+              if (widget.resumo.bancaInicial > 0)
+                Text(
+                  '1% = ${formatoMoeda.format(widget.resumo.bancaInicial / 100)}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textoSecundario),
+                ),
             ],
           ),
           const SizedBox(height: 16),

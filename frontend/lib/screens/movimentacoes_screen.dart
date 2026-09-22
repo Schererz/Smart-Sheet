@@ -180,13 +180,14 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> with SingleTi
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     children: [
-                      _CartaoBarra(
-                        titulo: _abaDeposito ? 'Capital alocado (sem lucro)' : 'Disponível pra sacar (com lucro)',
-                        subtitulo: _abaDeposito
-                            ? 'Só o que você depositou/sacou de verdade — não muda sozinho com o resultado das apostas.'
-                            : 'Já soma o lucro/prejuízo de cada casa — é o que realmente dá pra sacar agora.',
-                        dados: _abaDeposito ? _capitalPorCasa : _bancaLocalizacao,
-                      ),
+                      if (_abaDeposito)
+                        _ResumoDeposito(dados: _capitalPorCasa)
+                      else
+                        _CartaoBarra(
+                          titulo: 'Disponível pra sacar (com lucro)',
+                          subtitulo: 'Já soma o lucro/prejuízo de cada casa — é o que realmente dá pra sacar agora.',
+                          dados: _bancaLocalizacao,
+                        ),
                       const SizedBox(height: 20),
                       const Text('Histórico', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
                       const SizedBox(height: 10),
@@ -261,6 +262,89 @@ class _CartaoBarra extends StatelessWidget {
           Text(subtitulo, style: const TextStyle(color: AppColors.textoSecundario, fontSize: 12)),
           const SizedBox(height: 12),
           if (dados != null) BarraBancaLocalizacao(dados: dados!),
+        ],
+      ),
+    );
+  }
+}
+
+/// Aba Depósito, sem barra nem porcentagem — só o total depositado, quanto
+/// está em cada casa, e o que sobra "no banco" (pode ficar negativo, o que
+/// significa que você depositou mais do que sua banca configurada).
+class _ResumoDeposito extends StatelessWidget {
+  final BancaPorLocalizacao? dados;
+  const _ResumoDeposito({required this.dados});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatoMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    final d = dados;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: AppColors.superficie, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Capital alocado (sem lucro)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+          const SizedBox(height: 4),
+          const Text(
+            'Só o que você depositou/sacou de verdade — não muda sozinho com o resultado das apostas.',
+            style: TextStyle(color: AppColors.textoSecundario, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          if (d == null)
+            const Center(child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator()))
+          else ...[
+            if (d.casas.isNotEmpty) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total depositado', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                  Text(
+                    formatoMoeda.format(d.casas.fold<double>(0, (s, c) => s + c.valor)),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ...d.casas.map(
+                (c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(c.casa, style: const TextStyle(fontSize: 13, color: AppColors.textoSecundario)),
+                      Text(formatoMoeda.format(c.valor), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+              const Divider(height: 24),
+            ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('No banco (fora das casas)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                Text(
+                  formatoMoeda.format(d.banco),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                    color: d.banco < 0 ? AppColors.red : null,
+                  ),
+                ),
+              ],
+            ),
+            if (d.banco < 0)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Negativo = você depositou mais do que sua banca configurada — esse tanto veio do seu bolso, fora da banca.',
+                  style: TextStyle(fontSize: 11.5, color: AppColors.textoSecundario),
+                ),
+              ),
+          ],
         ],
       ),
     );

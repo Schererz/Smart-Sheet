@@ -18,16 +18,14 @@ def obter_configuracao(db: Session, usuario_id: int) -> models.Configuracao:
     return config
 
 
-def atualizar_banca_inicial(db: Session, usuario_id: int, banca_atual_desejada: float) -> models.Configuracao:
-    """O valor recebido representa o que o usuário quer ver como banca
-    ATUAL (a que já soma o lucro) — não o banca_inicial bruto. Calcula o
-    banca_inicial de trás pra frente, descontando o lucro que já rolou,
-    pra não somar o lucro duas vezes (bug corrigido em 12/09/2026: antes,
-    definir a banca sobrescrevia banca_inicial direto, e como banca_atual
-    = banca_inicial + lucro, o lucro antigo acabava contado de novo)."""
-    lucro_total = calcular_resumo(db, usuario_id)["lucro_total"]
+def atualizar_banca_inicial(db: Session, usuario_id: int, valor: float) -> models.Configuracao:
+    """Define a banca DIRETAMENTE — é um número fixo que o usuário escreve,
+    não se mistura com lucro em nenhum momento (revertido em 12/09/2026 a
+    pedido do usuário: a tentativa anterior de "descontar o lucro" causava
+    mais confusão do que resolvia — banca e lucro são duas coisas
+    separadas, ponto)."""
     config = obter_configuracao(db, usuario_id)
-    config.banca_inicial = round(banca_atual_desejada - lucro_total, 2)
+    config.banca_inicial = round(valor, 2)
     config.definida = True
     db.commit()
     db.refresh(config)
@@ -535,26 +533,29 @@ def _movimentacoes_e_lucro_por_casa(db: Session, usuario_id: int):
 
 
 def calcular_capital_por_casa(db: Session, usuario_id: int) -> dict:
-    """Aba DEPÓSITO: mostra só capital puro (depósito − saque) de cada
-    casa, como fatia da banca INICIAL (fixa) — sem lucro misturado, então
-    a barra não "cresce sozinha" conforme o mês evolui. Só muda quando
-    você deposita/saca de verdade, ou quando redefine a banca."""
+    """Aba DEPÓSITO: soma quanto foi depositado em cada casa — só soma
+    de depósitos, nada de saque ou lucro misturado no meio. Casa que
+    nunca recebeu depósito nenhum simplesmente não aparece na lista
+    (diferente de aparecer com R$0, que seria confuso — significa que
+    aquela casa nunca teve um depósito registrado no app).
+
+    O "banco" é banca (fixa, a que o usuário escreve) menos a soma de
+    TODOS os depósitos — pode ficar negativo, o que significa que
+    depositou mais do que a banca configurada (veio do próprio bolso)."""
     config = obter_configuracao(db, usuario_id)
     banca_inicial = config.banca_inicial
 
-    casas, depositos_por_casa, saques_por_casa, _ = _movimentacoes_e_lucro_por_casa(db, usuario_id)
+    casas, depositos_por_casa, _, _ = _movimentacoes_e_lucro_por_casa(db, usuario_id)
 
     resultado_casas = []
-    total_alocado = 0.0
+    total_depositado = 0.0
     for casa in casas:
         depositos = depositos_por_casa.get(casa.id, 0.0)
-        saques = saques_por_casa.get(casa.id, 0.0)
-        saldo = depositos - saques
-        if depositos or saques:
-            total_alocado += saldo
-            resultado_casas.append({"casa": casa.nome, "valor": round(saldo, 2)})
+        if depositos:  # só mostra casa que já recebeu depósito ao menos uma vez
+            total_depositado += depositos
+            resultado_casas.append({"casa": casa.nome, "valor": round(depositos, 2)})
 
-    banco = round(banca_inicial - total_alocado, 2)
+    banco = round(banca_inicial - total_depositado, 2)
     return {"banco": banco, "casas": resultado_casas, "total": round(banca_inicial, 2)}
 
 
