@@ -18,9 +18,16 @@ def obter_configuracao(db: Session, usuario_id: int) -> models.Configuracao:
     return config
 
 
-def atualizar_banca_inicial(db: Session, usuario_id: int, valor: float) -> models.Configuracao:
+def atualizar_banca_inicial(db: Session, usuario_id: int, banca_atual_desejada: float) -> models.Configuracao:
+    """O valor recebido representa o que o usuário quer ver como banca
+    ATUAL (a que já soma o lucro) — não o banca_inicial bruto. Calcula o
+    banca_inicial de trás pra frente, descontando o lucro que já rolou,
+    pra não somar o lucro duas vezes (bug corrigido em 12/09/2026: antes,
+    definir a banca sobrescrevia banca_inicial direto, e como banca_atual
+    = banca_inicial + lucro, o lucro antigo acabava contado de novo)."""
+    lucro_total = calcular_resumo(db, usuario_id)["lucro_total"]
     config = obter_configuracao(db, usuario_id)
-    config.banca_inicial = valor
+    config.banca_inicial = round(banca_atual_desejada - lucro_total, 2)
     config.definida = True
     db.commit()
     db.refresh(config)
@@ -109,15 +116,6 @@ def deletar_casa(db: Session, usuario_id: int, casa_id: int):
     db.commit()
     return casa
 
-
-def atualizar_banca_casa(db: Session, usuario_id: int, casa_id: int, valor: float):
-    casa = db.query(models.Casa).filter(models.Casa.id == casa_id, models.Casa.usuario_id == usuario_id).first()
-    if not casa:
-        return None
-    casa.banca_inicial = valor
-    db.commit()
-    db.refresh(casa)
-    return casa
 
 
 def registrar_uso_casa(db: Session, usuario_id: int, nome: str):
@@ -308,9 +306,17 @@ def calcular_resumo(db: Session, usuario_id: int) -> dict:
 def obter_resumo_por_casa(db: Session, usuario_id: int) -> list[dict]:
     """Estatísticas separadas por casa — antes fazia 1 consulta pra cada
     casa cadastrada (N+1); agora é uma consulta só, agrupada por casa
-    (GROUP BY), não importa quantas casas existam."""
-    casas = listar_casas(db, usuario_id)
-    banca_inicial_por_casa = {c.nome: c.banca_inicial for c in casas}
+    (GROUP BY), não importa quantas casas existam.
+
+    A banca "inicial" de cada casa deixou de ser um campo digitado à mão
+    (Casa.banca_inicial, hoje sem uso) e passou a ser calculada sozinha:
+    é a soma histórica de TODOS os depósitos já feitos ali (nunca
+    diminui, só cresce a cada depósito novo). A "atual" é essa soma,
+    menos os saques, mais o lucro das apostas na casa — reflete de
+    verdade quanto tem ali agora."""
+    casas, depositos_por_casa, saques_por_casa, _ = _movimentacoes_e_lucro_por_casa(db, usuario_id)
+    depositos_por_nome = {c.nome: depositos_por_casa.get(c.id, 0.0) for c in casas}
+    saques_por_nome = {c.nome: saques_por_casa.get(c.id, 0.0) for c in casas}
 
     linhas = (
         db.query(
@@ -329,9 +335,23 @@ def obter_resumo_por_casa(db: Session, usuario_id: int) -> list[dict]:
         .group_by(models.Bet.casa_de_apostas)
         .all()
     )
+    stats_por_nome = {linha[0]: linha[1:] for linha in linhas}
+
+    # considera tanto quem já apostou quanto quem só tem depósito/saque
+    # até agora (senão uma casa recém-criada, ainda sem aposta, ficaria
+    # invisível aqui mesmo já tendo dinheiro alocado nela)
+    nomes_com_movimentacao = {
+        c.nome for c in casas if depositos_por_nome.get(c.nome) or saques_por_nome.get(c.nome)
+    }
+    todos_os_nomes = set(stats_por_nome.keys()) | nomes_com_movimentacao
 
     resultado = []
-    for casa_nome, total_apostas, total_apostado, lucro_total, odd_media, ganhas, resolvidas_count in linhas:
+    for casa_nome in todos_os_nomes:
+        if casa_nome in stats_por_nome:
+            total_apostas, total_apostado, lucro_total, odd_media, ganhas, resolvidas_count = stats_por_nome[casa_nome]
+        else:
+            total_apostas, total_apostado, lucro_total, odd_media, ganhas, resolvidas_count = 0, 0.0, 0.0, None, 0, 0
+
         total_apostado = total_apostado or 0.0
         lucro_total = lucro_total or 0.0
         ganhas = ganhas or 0
@@ -340,8 +360,9 @@ def obter_resumo_por_casa(db: Session, usuario_id: int) -> list[dict]:
         taxa_acerto = round(100 * ganhas / resolvidas_count, 1) if resolvidas_count else None
         roi_apostado = round(100 * lucro_total / total_apostado, 1) if total_apostado else None
 
-        banca_inicial = banca_inicial_por_casa.get(casa_nome)
-        banca_atual = round(banca_inicial + lucro_total, 2) if banca_inicial is not None else None
+        banca_inicial = depositos_por_nome.get(casa_nome, 0.0) or None
+        saques = saques_por_nome.get(casa_nome, 0.0)
+        banca_atual = round((banca_inicial or 0.0) - saques + lucro_total, 2) if banca_inicial is not None else None
         roi_banca = round(100 * lucro_total / banca_inicial, 1) if banca_inicial else None
 
         resultado.append({
@@ -479,22 +500,11 @@ def deletar_movimentacao(db: Session, usuario_id: int, movimentacao_id: int):
     return mov
 
 
-def calcular_banca_por_localizacao(db: Session, usuario_id: int) -> dict:
-    """Divide a banca atual (mesma conta de sempre: banca_inicial + lucro
-    total) entre "quanto está em cada casa" e "quanto está fora, disponível
-    pra depositar". Saldo de cada casa = depósitos - saques + lucro das
-    apostas daquela casa. O "banco" é sempre o que sobra — por construção,
-    banco + soma das casas sempre bate com a banca atual total.
-
-    Antes fazia 3 consultas PRA CADA casa (depósitos, saques, lucro) —
-    agora são só 2 consultas no total (uma agrupada por casa+tipo de
-    movimentação, outra agrupada por casa pro lucro), não importa quantas
-    casas existam."""
-    resumo_geral = calcular_resumo(db, usuario_id)
-    banca_atual_global = resumo_geral["banca_atual"]
-
+def _movimentacoes_e_lucro_por_casa(db: Session, usuario_id: int):
+    """Helper compartilhado entre as duas visões (depósito e saque):
+    devolve as casas, e os totais de depósito/saque/lucro agrupados por
+    casa — 2 consultas no total, não importa quantas casas existam."""
     casas = listar_casas(db, usuario_id)
-    id_para_nome = {c.id: c.nome for c in casas}
 
     movimentacoes_agrupadas = (
         db.query(
@@ -521,9 +531,45 @@ def calcular_banca_por_localizacao(db: Session, usuario_id: int) -> dict:
         .all()
     )
 
+    return casas, depositos_por_casa, saques_por_casa, lucro_por_casa_nome
+
+
+def calcular_capital_por_casa(db: Session, usuario_id: int) -> dict:
+    """Aba DEPÓSITO: mostra só capital puro (depósito − saque) de cada
+    casa, como fatia da banca INICIAL (fixa) — sem lucro misturado, então
+    a barra não "cresce sozinha" conforme o mês evolui. Só muda quando
+    você deposita/saca de verdade, ou quando redefine a banca."""
+    config = obter_configuracao(db, usuario_id)
+    banca_inicial = config.banca_inicial
+
+    casas, depositos_por_casa, saques_por_casa, _ = _movimentacoes_e_lucro_por_casa(db, usuario_id)
+
     resultado_casas = []
     total_alocado = 0.0
+    for casa in casas:
+        depositos = depositos_por_casa.get(casa.id, 0.0)
+        saques = saques_por_casa.get(casa.id, 0.0)
+        saldo = depositos - saques
+        if depositos or saques:
+            total_alocado += saldo
+            resultado_casas.append({"casa": casa.nome, "valor": round(saldo, 2)})
 
+    banco = round(banca_inicial - total_alocado, 2)
+    return {"banco": banco, "casas": resultado_casas, "total": round(banca_inicial, 2)}
+
+
+def calcular_banca_por_localizacao(db: Session, usuario_id: int) -> dict:
+    """Aba SAQUE: mostra o saldo real disponível pra sacar de cada casa
+    (depósito − saque + lucro das apostas daquela casa), como fatia da
+    banca ATUAL (com lucro já incluído) — "quanto realmente tem em cada
+    lugar agora, pra sacar"."""
+    resumo_geral = calcular_resumo(db, usuario_id)
+    banca_atual_global = resumo_geral["banca_atual"]
+
+    casas, depositos_por_casa, saques_por_casa, lucro_por_casa_nome = _movimentacoes_e_lucro_por_casa(db, usuario_id)
+
+    resultado_casas = []
+    total_alocado = 0.0
     for casa in casas:
         depositos = depositos_por_casa.get(casa.id, 0.0)
         saques = saques_por_casa.get(casa.id, 0.0)

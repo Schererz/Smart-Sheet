@@ -66,3 +66,6 @@ secrets.json
 # Logs e uploads temporários
 *.log
 uploads/
+
+
+.docx

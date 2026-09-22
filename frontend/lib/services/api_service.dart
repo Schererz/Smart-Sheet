@@ -141,14 +141,10 @@ class ApiService {
     _verificarErro(resposta);
   }
 
-  Future<Casa> atualizarBancaCasa(int casaId, double valor) async {
-    final resposta = await http.patch(
-      _uri('/casas/$casaId/banca'),
-      headers: _headers(json: true),
-      body: jsonEncode({'banca_inicial': valor}),
-    );
+  Future<BancaPorLocalizacao> obterCapitalPorCasa() async {
+    final resposta = await http.get(_uri('/movimentacoes/capital-por-casa'), headers: _headers());
     _verificarErro(resposta);
-    return Casa.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
+    return BancaPorLocalizacao.fromJson(jsonDecode(utf8.decode(resposta.bodyBytes)));
   }
 
   Future<List<ResumoPorCasa>> obterResumoPorCasa() async {

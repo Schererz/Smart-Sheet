@@ -51,3 +51,12 @@ def banca_por_localizacao(
     usuario: models.Usuario = Depends(obter_usuario_atual),
 ):
     return crud.calcular_banca_por_localizacao(db, usuario.id)
+
+
+@router.get("/capital-por-casa", response_model=schemas.BancaPorLocalizacao)
+def capital_por_casa(
+    db: Session = Depends(get_db),
+    usuario: models.Usuario = Depends(obter_usuario_atual),
+):
+    """Aba Depósito: capital puro alocado em cada casa (sem lucro misturado)."""
+    return crud.calcular_capital_por_casa(db, usuario.id)

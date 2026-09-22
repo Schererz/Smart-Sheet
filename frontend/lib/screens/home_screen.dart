@@ -54,14 +54,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _abrirDialogoBanca({bool primeiraVez = false}) async {
     final controlador = TextEditingController(
-      text: primeiraVez ? '' : _resumo.bancaInicial.toStringAsFixed(2),
+      text: primeiraVez ? '' : _resumo.bancaAtual.toStringAsFixed(2),
     );
     final valor = await showDialog<double>(
       context: context,
       barrierDismissible: !primeiraVez,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.superficieAlta,
-        title: Text(primeiraVez ? 'Qual sua banca inicial?' : 'Editar banca inicial'),
+        title: Text(primeiraVez ? 'Qual sua banca inicial?' : 'Editar banca atual'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,6 +71,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: EdgeInsets.only(bottom: 12),
                 child: Text(
                   'É o valor que você tem disponível pra apostar hoje. Isso é só o ponto de partida do gráfico de evolução — dá pra mudar depois.',
+                  style: TextStyle(color: AppColors.textoSecundario, fontSize: 13),
+                ),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Coloca quanto você quer que apareça como sua banca agora. O lucro/prejuízo que você já tem não muda — só o ponto de partida é ajustado por trás.',
                   style: TextStyle(color: AppColors.textoSecundario, fontSize: 13),
                 ),
               ),

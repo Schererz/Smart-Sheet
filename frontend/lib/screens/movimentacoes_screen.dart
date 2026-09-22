@@ -15,13 +15,20 @@ class MovimentacoesScreen extends StatefulWidget {
   State<MovimentacoesScreen> createState() => _MovimentacoesScreenState();
 }
 
-class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
+class _MovimentacoesScreenState extends State<MovimentacoesScreen> with SingleTickerProviderStateMixin {
   final _api = ApiService();
+  late final TabController _abas;
 
   bool _carregando = true;
   String? _erro;
   List<Casa> _casas = [];
+
+  /// Aba Depósito: capital puro (depósito − saque), % da banca INICIAL fixa.
+  BancaPorLocalizacao? _capitalPorCasa;
+
+  /// Aba Saque: saldo real (depósito − saque + lucro), % da banca ATUAL.
   BancaPorLocalizacao? _bancaLocalizacao;
+
   List<Movimentacao> _movimentacoes = [];
 
   PeriodoSelecionado _periodo = PeriodoSelecionado.tudo;
@@ -30,8 +37,17 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
   @override
   void initState() {
     super.initState();
+    _abas = TabController(length: 2, vsync: this);
     _carregarTudo();
   }
+
+  @override
+  void dispose() {
+    _abas.dispose();
+    super.dispose();
+  }
+
+  bool get _abaDeposito => _abas.index == 0;
 
   Future<void> _carregarTudo() async {
     setState(() {
@@ -41,6 +57,7 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
     try {
       final resultados = await Future.wait([
         _api.listarCasas(),
+        _api.obterCapitalPorCasa(),
         _api.obterBancaPorLocalizacao(),
         _api.listarMovimentacoes(
           casaId: _casaFiltro,
@@ -50,8 +67,9 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
       ]);
       setState(() {
         _casas = resultados[0] as List<Casa>;
-        _bancaLocalizacao = resultados[1] as BancaPorLocalizacao;
-        _movimentacoes = resultados[2] as List<Movimentacao>;
+        _capitalPorCasa = resultados[1] as BancaPorLocalizacao;
+        _bancaLocalizacao = resultados[2] as BancaPorLocalizacao;
+        _movimentacoes = resultados[3] as List<Movimentacao>;
       });
     } catch (e) {
       setState(() => _erro = 'Não consegui carregar: $e');
@@ -60,9 +78,9 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
     }
   }
 
-  /// Só troca o filtro (período ou casa) — as casas cadastradas e a banca
-  /// por localização não mudam com isso, então não faz sentido buscar de
-  /// novo, só a lista de movimentações precisa refletir o filtro novo.
+  /// Só troca o filtro (período ou casa) — as casas cadastradas e as duas
+  /// barras não mudam com isso, só a lista de movimentações precisa
+  /// refletir o filtro novo.
   Future<void> _recarregarMovimentacoes() async {
     try {
       final movimentacoes = await _api.listarMovimentacoes(
@@ -77,11 +95,11 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
   }
 
   /// Depois de criar/excluir uma movimentação: a lista de casas continua
-  /// a mesma (isso não cria nem apaga casa nenhuma), só a banca por
-  /// localização e a própria lista de movimentações mudam.
+  /// a mesma, só as duas barras e a lista de movimentações mudam.
   Future<void> _recarregarAposMovimentacao() async {
     try {
       final resultados = await Future.wait([
+        _api.obterCapitalPorCasa(),
         _api.obterBancaPorLocalizacao(),
         _api.listarMovimentacoes(
           casaId: _casaFiltro,
@@ -90,8 +108,9 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
         ),
       ]);
       setState(() {
-        _bancaLocalizacao = resultados[0] as BancaPorLocalizacao;
-        _movimentacoes = resultados[1] as List<Movimentacao>;
+        _capitalPorCasa = resultados[0] as BancaPorLocalizacao;
+        _bancaLocalizacao = resultados[1] as BancaPorLocalizacao;
+        _movimentacoes = resultados[2] as List<Movimentacao>;
       });
     } catch (e) {
       setState(() => _erro = 'Não consegui carregar: $e');
@@ -115,7 +134,10 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
       isScrollControlled: true,
       backgroundColor: AppColors.superficieAlta,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _FormularioMovimentacao(casas: _casas),
+      builder: (_) => _FormularioMovimentacao(
+        casas: _casas,
+        tipoInicial: _abaDeposito ? TipoMovimentacao.deposito : TipoMovimentacao.saque,
+      ),
     );
     if (salvou == true) _recarregarAposMovimentacao();
   }
@@ -133,11 +155,18 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final formatoMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-    final formatoData = DateFormat('dd/MM/yyyy');
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Saques e depósitos')),
+      appBar: AppBar(
+        title: const Text('Saques e depósitos'),
+        bottom: TabBar(
+          controller: _abas,
+          onTap: (_) => setState(() {}), // só pra atualizar qual barra/lista aparece
+          tabs: const [
+            Tab(text: 'Depósito'),
+            Tab(text: 'Saque'),
+          ],
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _abrirFormularioNovo,
         child: const Icon(Icons.add),
@@ -151,17 +180,12 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(color: AppColors.superficie, borderRadius: BorderRadius.circular(14)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Onde sua banca está agora', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
-                            const SizedBox(height: 12),
-                            if (_bancaLocalizacao != null) BarraBancaLocalizacao(dados: _bancaLocalizacao!),
-                          ],
-                        ),
+                      _CartaoBarra(
+                        titulo: _abaDeposito ? 'Capital alocado (sem lucro)' : 'Disponível pra sacar (com lucro)',
+                        subtitulo: _abaDeposito
+                            ? 'Só o que você depositou/sacou de verdade — não muda sozinho com o resultado das apostas.'
+                            : 'Já soma o lucro/prejuízo de cada casa — é o que realmente dá pra sacar agora.',
+                        dados: _abaDeposito ? _capitalPorCasa : _bancaLocalizacao,
                       ),
                       const SizedBox(height: 20),
                       const Text('Histórico', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
@@ -203,66 +227,108 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      if (_movimentacoes.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Center(
-                            child: Text(
-                              'Nenhuma movimentação nesse período/filtro.',
-                              style: TextStyle(color: AppColors.textoSecundario, fontSize: 13),
-                            ),
-                          ),
-                        )
-                      else
-                        ..._movimentacoes.map((mov) {
-                          final eDeposito = mov.tipo == TipoMovimentacao.deposito;
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: AppColors.superficie, borderRadius: BorderRadius.circular(10)),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  eDeposito ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                                  color: eDeposito ? AppColors.green : AppColors.red,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${eDeposito ? 'Depósito' : 'Saque'} — ${_nomeCasa(mov.casaId)}',
-                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
-                                      ),
-                                      Text(
-                                        formatoData.format(mov.data),
-                                        style: const TextStyle(color: AppColors.textoSecundario, fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  formatoMoeda.format(mov.valor),
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: eDeposito ? AppColors.green : AppColors.red,
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () => _excluir(mov),
-                                  icon: const Icon(Icons.close, size: 18),
-                                  color: AppColors.textoSecundario,
-                                  visualDensity: VisualDensity.compact,
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
+                      _ListaMovimentacoes(
+                        movimentacoes: _movimentacoes
+                            .where((m) => m.tipo == (_abaDeposito ? TipoMovimentacao.deposito : TipoMovimentacao.saque))
+                            .toList(),
+                        nomeCasa: _nomeCasa,
+                        onExcluir: _excluir,
+                      ),
                     ],
                   ),
                 ),
+    );
+  }
+}
+
+class _CartaoBarra extends StatelessWidget {
+  final String titulo;
+  final String subtitulo;
+  final BancaPorLocalizacao? dados;
+
+  const _CartaoBarra({required this.titulo, required this.subtitulo, required this.dados});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: AppColors.superficie, borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(titulo, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+          const SizedBox(height: 4),
+          Text(subtitulo, style: const TextStyle(color: AppColors.textoSecundario, fontSize: 12)),
+          const SizedBox(height: 12),
+          if (dados != null) BarraBancaLocalizacao(dados: dados!),
+        ],
+      ),
+    );
+  }
+}
+
+class _ListaMovimentacoes extends StatelessWidget {
+  final List<Movimentacao> movimentacoes;
+  final String Function(int) nomeCasa;
+  final void Function(Movimentacao) onExcluir;
+
+  const _ListaMovimentacoes({required this.movimentacoes, required this.nomeCasa, required this.onExcluir});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatoMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    final formatoData = DateFormat('dd/MM/yyyy');
+
+    if (movimentacoes.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: Text(
+            'Nenhuma movimentação nesse período/filtro.',
+            style: TextStyle(color: AppColors.textoSecundario, fontSize: 13),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: movimentacoes.map((mov) {
+        final eDeposito = mov.tipo == TipoMovimentacao.deposito;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: AppColors.superficie, borderRadius: BorderRadius.circular(10)),
+          child: Row(
+            children: [
+              Icon(
+                eDeposito ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                color: eDeposito ? AppColors.green : AppColors.red,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(nomeCasa(mov.casaId), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+                    Text(formatoData.format(mov.data), style: const TextStyle(color: AppColors.textoSecundario, fontSize: 12)),
+                  ],
+                ),
+              ),
+              Text(
+                formatoMoeda.format(mov.valor),
+                style: TextStyle(fontWeight: FontWeight.w700, color: eDeposito ? AppColors.green : AppColors.red),
+              ),
+              IconButton(
+                onPressed: () => onExcluir(mov),
+                icon: const Icon(Icons.close, size: 18),
+                color: AppColors.textoSecundario,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -301,7 +367,8 @@ class _ChipCasa extends StatelessWidget {
 
 class _FormularioMovimentacao extends StatefulWidget {
   final List<Casa> casas;
-  const _FormularioMovimentacao({required this.casas});
+  final TipoMovimentacao tipoInicial;
+  const _FormularioMovimentacao({required this.casas, this.tipoInicial = TipoMovimentacao.deposito});
 
   @override
   State<_FormularioMovimentacao> createState() => _FormularioMovimentacaoState();
@@ -310,7 +377,7 @@ class _FormularioMovimentacao extends StatefulWidget {
 class _FormularioMovimentacaoState extends State<_FormularioMovimentacao> {
   final _api = ApiService();
   late Casa _casaEscolhida;
-  TipoMovimentacao _tipo = TipoMovimentacao.deposito;
+  late TipoMovimentacao _tipo;
   final _valorController = TextEditingController();
   DateTime _data = DateTime.now();
   bool _salvando = false;
@@ -320,6 +387,7 @@ class _FormularioMovimentacaoState extends State<_FormularioMovimentacao> {
   void initState() {
     super.initState();
     _casaEscolhida = widget.casas.first;
+    _tipo = widget.tipoInicial;
   }
 
   @override

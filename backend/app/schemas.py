@@ -70,10 +70,6 @@ class CasaOut(BaseModel):
     criado_em: datetime
 
 
-class CasaBancaUpdate(BaseModel):
-    banca_inicial: float
-
-
 class ResumoPorCasa(BaseModel):
     """Estatísticas de uma casa específica — pra comparar qual está indo melhor."""
     casa: str
