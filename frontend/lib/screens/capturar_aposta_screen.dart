@@ -6,6 +6,7 @@ import '../models/bloco_ocr.dart';
 import '../services/api_service.dart';
 import '../services/ocr_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/carregando_animado.dart';
 import 'aposta_form_screen.dart';
 
 class CapturarApostaScreen extends StatefulWidget {
@@ -144,16 +145,7 @@ class _CapturarApostaScreenState extends State<CapturarApostaScreen> {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: _processando
-                    ? const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text('Lendo a imagem...', style: TextStyle(color: AppColors.textoSecundario)),
-                          ],
-                        ),
-                      )
+                    ? const CarregandoAnimado(mensagem: 'Lendo a imagem...')
                     : const Center(
                         child: Padding(
                           padding: EdgeInsets.all(24),

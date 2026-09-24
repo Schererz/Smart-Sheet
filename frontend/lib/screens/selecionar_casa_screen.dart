@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/casa.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/carregando_animado.dart';
 import 'aposta_form_screen.dart';
 import 'capturar_aposta_screen.dart';
 
@@ -119,7 +120,7 @@ class _SelecionarCasaScreenState extends State<SelecionarCasaScreen> {
           ),
           Expanded(
             child: _carregando
-                ? const Center(child: CircularProgressIndicator())
+                ? const CarregandoAnimado()
                 : _casas.isEmpty
                     ? const _EstadoVazio()
                     : ListView.separated(

@@ -6,6 +6,7 @@ import '../models/movimentacao.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/barra_banca_localizacao.dart';
+import '../widgets/carregando_animado.dart';
 import '../widgets/seletor_periodo.dart';
 
 class MovimentacoesScreen extends StatefulWidget {
@@ -172,7 +173,7 @@ class _MovimentacoesScreenState extends State<MovimentacoesScreen> with SingleTi
         child: const Icon(Icons.add),
       ),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator())
+          ? const CarregandoAnimado()
           : _erro != null
               ? Center(child: Text(_erro!, style: const TextStyle(color: AppColors.textoSecundario)))
               : RefreshIndicator(

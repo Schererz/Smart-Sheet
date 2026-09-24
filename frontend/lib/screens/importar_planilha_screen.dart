@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/carregando_animado.dart';
 
 class ImportarPlanilhaScreen extends StatefulWidget {
   const ImportarPlanilhaScreen({super.key});
@@ -82,7 +83,7 @@ class _ImportarPlanilhaScreenState extends State<ImportarPlanilhaScreen> {
               label: Text(_importando ? 'Importando...' : 'Escolher planilha (.xlsx ou .csv)'),
             ),
             const SizedBox(height: 24),
-            if (_importando) const Center(child: CircularProgressIndicator()),
+            if (_importando) const CarregandoAnimado(mensagem: 'Importando...'),
             if (_erro != null)
               Container(
                 padding: const EdgeInsets.all(14),

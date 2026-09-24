@@ -182,6 +182,22 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _mudarStatusPara(Aposta aposta, ResultadoAposta novoStatus) async {
+    if (aposta.id == null || aposta.resultado == novoStatus) return;
+    final indice = _apostas.indexWhere((a) => a.id == aposta.id);
+    try {
+      final atualizada = await _api.atualizarAposta(aposta.id!, {'resultado': novoStatus.name});
+      setState(() {
+        if (indice != -1) _apostas[indice] = atualizada;
+        _resumo = _recalcularResumoLocal();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Não consegui atualizar: $e')));
+      }
+    }
+  }
+
   Future<void> _excluir(Aposta aposta) async {
     if (aposta.id == null) return;
     setState(() => _apostas.removeWhere((a) => a.id == aposta.id));
@@ -228,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
         carregando: _carregando,
         erro: _erro,
         onTocarStatus: _ciclarStatus,
+        onMudarStatusPara: _mudarStatusPara,
         onExcluir: _excluir,
         onEditar: _editarAposta,
         onRefresh: _carregarTudo,

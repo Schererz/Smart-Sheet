@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/aposta.dart';
 import '../theme/app_theme.dart';
 import '../widgets/aposta_card.dart';
+import '../widgets/carregando_animado.dart';
 import '../widgets/filtro_apostas.dart';
 import '../widgets/filtro_apostas_sheet.dart';
 
@@ -12,6 +13,7 @@ class ApostasScreen extends StatefulWidget {
   final bool carregando;
   final String? erro;
   final void Function(Aposta) onTocarStatus;
+  final void Function(Aposta, ResultadoAposta) onMudarStatusPara;
   final void Function(Aposta) onExcluir;
   final void Function(Aposta) onEditar;
   final Future<void> Function() onRefresh;
@@ -22,6 +24,7 @@ class ApostasScreen extends StatefulWidget {
     required this.carregando,
     required this.erro,
     required this.onTocarStatus,
+    required this.onMudarStatusPara,
     required this.onExcluir,
     required this.onEditar,
     required this.onRefresh,
@@ -117,7 +120,7 @@ class _ApostasScreenState extends State<ApostasScreen> {
       body: RefreshIndicator(
         onRefresh: widget.onRefresh,
         child: widget.carregando
-            ? const Center(child: CircularProgressIndicator())
+            ? const CarregandoAnimado()
             : widget.erro != null
                 ? _EstadoErro(mensagem: widget.erro!, onTentarDeNovo: widget.onRefresh)
                 : apostasFiltradas.isEmpty
@@ -166,6 +169,7 @@ class _ApostasScreenState extends State<ApostasScreen> {
                                             child: ApostaCard(
                                               aposta: aposta,
                                               onTocarStatus: () => widget.onTocarStatus(aposta),
+                                              onMudarStatusPara: (novoStatus) => widget.onMudarStatusPara(aposta, novoStatus),
                                               onExcluir: () => widget.onExcluir(aposta),
                                               onEditar: () => widget.onEditar(aposta),
                                             ),

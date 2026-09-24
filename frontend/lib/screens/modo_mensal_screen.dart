@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/ciclo.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/carregando_animado.dart';
 import '../widgets/evolucao_banca_chart.dart';
 
 class ModoMensalScreen extends StatefulWidget {
@@ -157,7 +158,7 @@ class _ModoMensalScreenState extends State<ModoMensalScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Modo mensal')),
       body: _carregando
-          ? const Center(child: CircularProgressIndicator())
+          ? const CarregandoAnimado()
           : _erro != null
               ? Center(child: Text(_erro!, style: const TextStyle(color: AppColors.textoSecundario)))
               : RefreshIndicator(

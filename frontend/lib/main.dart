@@ -4,6 +4,7 @@ import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/carregando_animado.dart';
 
 void main() {
   runApp(const ApostasApp());
@@ -56,7 +57,7 @@ class _TelaInicialState extends State<_TelaInicial> {
   @override
   Widget build(BuildContext context) {
     if (_carregando) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: CarregandoAnimado());
     }
     return _logado ? const HomeScreen() : const LoginScreen();
   }
