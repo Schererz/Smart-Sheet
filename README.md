@@ -187,4 +187,4 @@ Smart-Sheet/
 
 ## Autor
 
-Feito por **_(seu nome)_**. [GitHub](https://github.com/Schererz) · _(LinkedIn ou e-mail)_
+Feito por **Pedro Scherer**. [GitHub](https://github.com/Schererz) · [Linkedin](linkedin.com/in/pedro-scherer-zimmermann-28a97134a)
