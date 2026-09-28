@@ -4,7 +4,7 @@ Controle e análise de banca, no navegador e no celular.
 
 Smart-Sheet é uma aplicação web e mobile de controle e análise de banca. Nasceu de uma planilha que eu mantinha à mão pra acompanhar minhas apostas esportivas (lançamentos, lucro, ROI, quanto havia em cada casa) e virou um sistema completo, com login, dashboard, filtros por período, gráficos e um bot do Telegram que registra os lançamentos. É só uma ferramenta de acompanhamento: não faz aposta nem movimenta dinheiro. Hoje é usado por mim e por dois amigos, cada um com a sua conta.
 
-> **Testar o app:** _(coloque o link aqui)_
+> **Testar o app:** https://smart-sheet-1-c0xr.onrender.com/
 
 <!--
 Quando tiver prints, salve em docs/img/ e tire os comentários abaixo.
